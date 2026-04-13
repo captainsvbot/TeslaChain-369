@@ -4,7 +4,7 @@ Copyright (c) 2009-2026 The Bitcoin Core developers
 Copyright (c) 2009-2026 Bitcoin Developers
 Copyright (c) 2026 Elton Gashi. All Rights Reserved.
 
-The work/implementation regarding TeslaChain or 369 skip-chain consensus layer is the proprietary intellectual property of Elton Gashi.
+The work/implementation regarding TeslaChain, 369 skip-chain consensus layer, Triadic Consensus Protocol (3-6-9) is the proprietary intellectual property of Elton Gashi.
 Unauthorized reproduction, distribution, or modification of this work is strictly prohibited without prior written consent. 
 Additional components may be subject to seperate licensing terms. No Permission is granted for TeslaChain unless 
 explicitly provided by Elton Gashi.
