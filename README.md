@@ -425,7 +425,9 @@ TeslaChain/              # GitHub repo
 
 ## GitHub
 
-**Repository:** https://github.com/captainsvbot/TeslaChain-369
+**Repository:** 
+https://github.com/captainsvbot/TeslaChain-369
+https://github.com/bitcoin/bitcoin
 
 **Commit history (as of April 10, 2026):**
 - `ae21fab` docs: v2 README - skip-chain linked list rule, deep finality, attack simulations
