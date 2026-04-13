@@ -52,6 +52,8 @@
 #include <serialize.h>
 #include <span.h>
 #include <streams.h>
+#include <spv.h>
+#include <spv_p2p.h>
 #include <sync.h>
 #include <tinyformat.h>
 #include <txmempool.h>
@@ -60,6 +62,7 @@
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/trace.h>
+#include <spv_p2p.h>
 #include <validation.h>
 
 #include <algorithm>
@@ -4385,6 +4388,268 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         // in the SendMessages logic.
         nodestate->pindexBestHeaderSent = pindex ? pindex : m_chainman.ActiveChain().Tip();
         MakeAndPushMessage(pfrom, NetMsgType::HEADERS, TX_WITH_WITNESS(vHeaders));
+        return;
+    }
+
+    // ------------------------------------------------------------
+    // TeslaChain AXIS P2P Handlers (3-6-9 Protocol)
+    // ------------------------------------------------------------
+
+    // ----------------------------------------------------------------
+    // GETAXISHEADERS handler
+    // Request AXIS block headers using a LINK-chain locator.
+    // Wire format: [locator][uint256 hash_stop]
+    // Uses LINK-chain block index to find the starting point, then returns
+    // every 3rd block (AXIS blocks at heights 3, 6, 9, ...)
+    // ----------------------------------------------------------------
+    if (msg_type == NetMsgType::GETAXISHEADERS) {
+        CBlockLocator locator;
+        uint256 hashStop;
+        vRecv >> locator >> hashStop;
+
+        if (locator.vHave.size() > MAX_LOCATOR_SZ) {
+            LogDebug(BCLog::NET, "GET_AXIS_HEADERS: locator size %zu > %d from peer %d, disconnecting\n",
+                     locator.vHave.size(), MAX_LOCATOR_SZ, pfrom.GetId());
+            pfrom.fDisconnect = true;
+            return;
+        }
+
+        if (m_chainman.m_blockman.LoadingBlocks()) {
+            LogDebug(BCLog::NET, "GET_AXIS_HEADERS: Ignoring from peer %d while loading\n", pfrom.GetId());
+            MakeAndPushMessage(pfrom, NetMsgType::AXISHEADERS, std::vector<CBlockHeader>());
+            return;
+        }
+
+        LOCK(cs_main);
+
+        if (m_chainman.ActiveTip() == nullptr ||
+                (m_chainman.ActiveTip()->nChainWork < m_chainman.MinimumChainWork() &&
+                 !pfrom.HasPermission(NetPermissionFlags::Download))) {
+            LogDebug(BCLog::NET, "GET_AXIS_HEADERS: Ignoring from peer %d due to low chain work\n", pfrom.GetId());
+            MakeAndPushMessage(pfrom, NetMsgType::AXISHEADERS, std::vector<CBlockHeader>());
+            return;
+        }
+
+        const CBlockIndex* pindex = nullptr;
+        if (locator.IsNull()) {
+            if (!hashStop.IsNull()) {
+                pindex = m_chainman.m_blockman.LookupBlockIndex(hashStop);
+            }
+            if (!pindex) {
+                pindex = m_chainman.ActiveChain().Tip();
+            }
+        } else {
+            pindex = m_chainman.ActiveChainstate().FindForkInGlobalIndex(locator);
+            if (pindex) {
+                pindex = m_chainman.ActiveChain().Next(pindex);
+            }
+        }
+
+        if (!pindex) {
+            MakeAndPushMessage(pfrom, NetMsgType::AXISHEADERS, std::vector<CBlockHeader>());
+            return;
+        }
+
+        // Find the first AXIS block at or after pindex
+        int target_height = pindex->nHeight;
+        if (target_height < 3) target_height = 3;
+        else if (target_height % 3 != 0) target_height = ((target_height / 3) + 1) * 3;
+
+        std::vector<CBlockHeader> axis_headers;
+        int nLimit = MAX_HEADERS_RESULTS;
+
+        if (target_height <= m_chainman.ActiveChain().Height()) {
+            const CBlockIndex* paxisindex = m_chainman.ActiveChain()[target_height];
+            while (paxisindex && nLimit > 0) {
+                if (spv::IsAxisBlock(paxisindex->nHeight)) {
+                    axis_headers.push_back(paxisindex->GetBlockHeader());
+                    if (--nLimit <= 0 || (!hashStop.IsNull() && paxisindex->GetBlockHash() == hashStop))
+                        break;
+                }
+                paxisindex = m_chainman.ActiveChain().Next(paxisindex);
+            }
+        }
+
+        MakeAndPushMessage(pfrom, NetMsgType::AXISHEADERS, axis_headers);
+        LogDebug(BCLog::NET, "GET_AXIS_HEADERS from peer %d: responding with %zu AXIS headers from height %d\n",
+                 pfrom.GetId(), axis_headers.size(), target_height);
+        return;
+    }
+
+    // ----------------------------------------------------------------
+    // AXISHEADERS handler
+    // Receive AXIS block headers (144 bytes each) from a peer.
+    // Wire format: [compactSize count][N×144-byte headers]
+    // ----------------------------------------------------------------
+    if (msg_type == NetMsgType::AXISHEADERS) {
+        if (m_chainman.m_blockman.LoadingBlocks()) {
+            LogDebug(BCLog::NET, "Unexpected AXIS_HEADERS message from peer %d\n", pfrom.GetId());
+            return;
+        }
+
+        std::vector<CBlockHeader> headers;
+        uint64_t count = ReadCompactSize(vRecv);
+        if (count > MAX_HEADERS_RESULTS) {
+            LogDebug(BCLog::NET, "AXIS_HEADERS from peer %d exceeded max count %u (got %u)\n",
+                     pfrom.GetId(), MAX_HEADERS_RESULTS, count);
+            Misbehaving(peer, "axis-headers-oversized");
+            return;
+        }
+
+        headers.resize(count);
+        for (uint64_t i = 0; i < count; ++i) {
+            try {
+                vRecv >> headers[i];
+            } catch (const std::exception& e) {
+                LogDebug(BCLog::NET, "AXIS_HEADERS: failed to parse header %u: %s\n", i, e.what());
+                Misbehaving(peer, "axis-headers-deserialize");
+                return;
+            }
+        }
+
+        LogDebug(BCLog::NET, "Received AXIS_HEADERS from peer %d: %zu headers\n", pfrom.GetId(), headers.size());
+
+        // Pre-validation: check AXIS fields are non-null and chain continuity
+        for (size_t i = 0; i < headers.size(); ++i) {
+            const CBlockHeader& header = headers[i];
+            if (header.hashPrevAxisBlock.IsNull() || header.hashAxisMerkleRoot.IsNull()) {
+                LogDebug(BCLog::NET, "AXIS_HEADERS: header %zu has null AXIS fields from peer %d\n",
+                         i, pfrom.GetId());
+                Misbehaving(peer, "axis-headers-missing-fields");
+                return;
+            }
+            if (i > 0) {
+                const CBlockHeader& prev = headers[i - 1];
+                if (header.hashPrevAxisBlock != prev.GetHash()) {
+                    LogDebug(BCLog::NET, "AXIS_HEADERS: non-continuous AXIS chain from peer %d at %zu\n",
+                             pfrom.GetId(), i);
+                    Misbehaving(peer, "axis-headers-non-continuous");
+                    return;
+                }
+            }
+        }
+
+        // Pass to validation: ProcessNewBlockHeaders sets heights via hashPrevBlock
+        {
+            LOCK(cs_main);
+            BlockValidationState state;
+            const CBlockIndex* pindexLast = nullptr;
+            for (size_t i = 0; i < headers.size(); ++i) {
+                if (!m_chainman.ProcessNewBlockHeaders(
+                        std::span<const CBlockHeader>{&headers[i], 1},
+                        /*min_pow_checked=*/false, state, &pindexLast)) {
+                    LogDebug(BCLog::NET, "AXIS_HEADERS: header %zu failed validation from peer %d: %s\n",
+                             i, pfrom.GetId(), state.GetDebugMessage());
+                    Misbehaving(peer, "axis-headers-invalid");
+                    return;
+                }
+            }
+
+            // Store validated headers in SPV P2P cache (if available)
+            if (pindexLast && spv::g_spv_p2p_client) {
+                std::vector<spv::AxisHeader> axis_headers_spv;
+                axis_headers_spv.reserve(headers.size());
+                for (size_t i = 0; i < headers.size(); ++i) {
+                    const uint256 hash = headers[i].GetHash();
+                    const CBlockIndex* idx = m_chainman.m_blockman.LookupBlockIndex(hash);
+                    if (idx) {
+                        spv::AxisHeader ah;
+                        ah.nHeight = idx->nHeight;
+                        ah.hash = hash;
+                        ah.hashPrevAxis = headers[i].hashPrevAxisBlock;
+                        ah.hashAxisMerkleRoot = headers[i].hashAxisMerkleRoot;
+                        axis_headers_spv.push_back(ah);
+                    }
+                }
+                spv::g_spv_p2p_client->GetCache().AddHeaders(pfrom.GetId(), axis_headers_spv);
+
+                spv::PeerAxisHeaderState peer_state;
+                peer_state.last_axis_headers_received = GetTime<std::chrono::seconds>();
+                peer_state.responded_to_request = true;
+                if (pindexLast) peer_state.highest_axis_height = pindexLast->nHeight;
+                spv::g_spv_p2p_client->UpdatePeerAxisState(pfrom.GetId(), peer_state);
+            }
+        }
+
+        LogDebug(BCLog::NET, "AXIS_HEADERS: Processed %zu valid headers from peer %d\n",
+                 headers.size(), pfrom.GetId());
+        return;
+    }
+
+    // ----------------------------------------------------------------
+    // GETAXISBLOCKS handler — request full AXIS blocks by hash
+    // Wire format: [compactSize count][N×32 byte hashes]
+    // ----------------------------------------------------------------
+    if (msg_type == NetMsgType::GETAXISBLOCKS) {
+        const uint64_t count = ReadCompactSize(vRecv);
+        if (count > MAX_GETDATA_SZ) {
+            Misbehaving(peer, strprintf("getaxisblocks count %u exceeds limit", count));
+            return;
+        }
+
+        std::vector<uint256> hashes;
+        hashes.reserve(count);
+        for (uint64_t i = 0; i < count; ++i) {
+            uint256 hash;
+            vRecv >> hash;
+            hashes.push_back(hash);
+        }
+
+        LOCK(cs_main);
+        std::vector<CBlock> blocks;
+        for (const uint256& hash : hashes) {
+            const CBlockIndex* pindex = m_chainman.m_blockman.LookupBlockIndex(hash);
+            if (pindex && (pindex->nStatus & BLOCK_HAVE_DATA)) {
+                CBlock blk;
+                if (m_chainman.m_blockman.ReadBlock(blk, *pindex)) {
+                    blocks.push_back(std::move(blk));
+                }
+            }
+        }
+
+        LogDebug(BCLog::NET, "GETAXISBLOCKS: sending %zu AXIS blocks to peer %d\n",
+                 blocks.size(), pfrom.GetId());
+        MakeAndPushMessage(pfrom, NetMsgType::AXISBLOCKS, TX_WITH_WITNESS(blocks));
+        return;
+    }
+
+    // ----------------------------------------------------------------
+    // AXISBLOCKS handler — receive full AXIS blocks from a peer
+    // Wire format: [compactSize count][N×serialized CBlock]
+    // ----------------------------------------------------------------
+    if (msg_type == NetMsgType::AXISBLOCKS) {
+        if (m_chainman.m_blockman.LoadingBlocks()) {
+            LogDebug(BCLog::NET, "Unexpected AXISBLOCKS from peer %d during load\n", pfrom.GetId());
+            return;
+        }
+
+        const uint64_t count = ReadCompactSize(vRecv);
+        if (count > MAX_GETDATA_SZ) {
+            Misbehaving(peer, strprintf("axisblocks count %u exceeds limit", count));
+            return;
+        }
+
+        std::vector<CBlock> blocks;
+        blocks.resize(count);
+        for (uint64_t i = 0; i < count; ++i) {
+            vRecv >> TX_WITH_WITNESS(blocks[i]);
+        }
+
+        LogDebug(BCLog::NET, "Received %u AXIS blocks from peer %d\n", count, pfrom.GetId());
+
+        for (CBlock& block : blocks) {
+            const uint256 hash{block.GetHash()};
+            BlockValidationState state;
+            bool new_block = false;
+            std::shared_ptr<const CBlock> pblock = std::make_shared<CBlock>(std::move(block));
+            if (!m_chainman.ProcessNewBlock(pblock, /*force_processing=*/false,
+                                           /*min_pow_checked=*/false, &new_block)) {
+                LogDebug(BCLog::NET, "AXISBLOCKS: rejected block %s from peer %d: %s\n",
+                         hash.ToString(), pfrom.GetId(), state.GetDebugMessage());
+                Misbehaving(peer, strprintf("axisblock %s rejected: %s",
+                                            hash.ToString(), state.GetDebugMessage()));
+            }
+        }
         return;
     }
 
