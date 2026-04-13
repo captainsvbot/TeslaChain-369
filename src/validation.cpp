@@ -4127,20 +4127,23 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     if (nHeight > 0 && nHeight % 3 == 0) {
         // This is an AXIS block — verify skip-chain fields are populated
         if (block.hashPrevAxisBlock.IsNull()) {
-            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-no-prev-axis-block",
-                strprintf("AXIS block %d must have hashPrevAxisBlock set", nHeight));
+            return state.Invalid(BlockValidationResult::BLOCK_AXIS_INVALID_V1, "axis-no-prev-axis-block",
+                strprintf("AXIS block %d must have hashPrevAxisBlock set", nHeight),
+                /*burn_pct=*/50);
         }
         if (block.hashAxisMerkleRoot.IsNull()) {
-            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-no-axis-merkle-root",
-                strprintf("AXIS block %d must have hashAxisMerkleRoot set", nHeight));
+            return state.Invalid(BlockValidationResult::BLOCK_AXIS_INVALID_V2, "axis-no-axis-merkle-root",
+                strprintf("AXIS block %d must have hashAxisMerkleRoot set", nHeight),
+                /*burn_pct=*/25);
         }
 
         // Verify hashPrevAxisBlock points to the correct previous AXIS block (height >= 3)
         int nPrevAxisHeight = nHeight - 3;
         const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
         if (!pPrevAxis) {
-            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-not-found",
-                strprintf("AXIS block %d: previous AXIS block at height %d not found in chain", nHeight, nPrevAxisHeight));
+            return state.Invalid(BlockValidationResult::BLOCK_AXIS_INVALID_V1, "axis-prev-axis-not-found",
+                strprintf("AXIS block %d: previous AXIS block at height %d not found in chain", nHeight, nPrevAxisHeight),
+                /*burn_pct=*/50);
         }
         if (nHeight == 3) {
             // First AXIS block: hashPrevAxisBlock must reference GENESIS (height 0).
@@ -4148,9 +4151,10 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
             // hashAxisMerkleRoot must be GENESIS hash (since it's the first AXIS merkle entry).
             uint256 expectedMerkle = pPrevAxis->GetBlockHash();
             if (block.hashAxisMerkleRoot != expectedMerkle) {
-                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-merkle-root-mismatch",
+                return state.Invalid(BlockValidationResult::BLOCK_AXIS_INVALID_V2, "axis-merkle-root-mismatch",
                     strprintf("AXIS block 3 hashAxisMerkleRoot=%s != expected %s (GENESIS hash)",
-                              block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()));
+                              block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()),
+                    /*burn_pct=*/25);
             }
         } else {
             uint256 expectedMerkle;
@@ -4159,9 +4163,10 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
             ss << pPrevAxis->GetBlockHash();
             expectedMerkle = ss.GetHash();
             if (block.hashAxisMerkleRoot != expectedMerkle) {
-                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-merkle-root-mismatch",
+                return state.Invalid(BlockValidationResult::BLOCK_AXIS_INVALID_V2, "axis-merkle-root-mismatch",
                     strprintf("AXIS block %d hashAxisMerkleRoot=%s != expected %s",
-                              nHeight, block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()));
+                              nHeight, block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()),
+                    /*burn_pct=*/25);
             }
         }
         LogInfo("SKIP-CHAIN: Block %d header validated — hashPrevAxisBlock=%s, hashAxisMerkleRoot=%s\n",
