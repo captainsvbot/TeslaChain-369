@@ -213,6 +213,51 @@ static std::vector<CAddress> ConvertSeeds(const std::vector<uint8_t> &vSeedsIn)
     return vSeedsOut;
 }
 
+/**
+ * StartDNSDiscovery — Bootstrap node discovery for TeslaChain.
+ *
+ * For regtest: adds loopback peers (127.0.0.1:19336, 127.0.0.1:18444) so
+ * two regtest nodes on the same machine can find each other without any
+ * external bootstrap infrastructure.
+ *
+ * For mainnet/testnet: queries DNS seeds from chainparams if available,
+ * otherwise falls back to loopback. Real DNS seeds need to be deployed.
+ */
+void StartDNSDiscovery(CConnman& connman)
+{
+    const CChainParams& chainparams = Params();
+    const std::vector<std::string>& dns_seeds = chainparams.ExplicitDNSSeeds();
+
+    // For regtest: always try to connect to local loopback peers.
+    // This ensures two regtest nodes can find each other without any
+    // external bootstrap infrastructure.
+    if (chainparams.GetChainType() == ChainType::REGTEST) {
+        const uint16_t regtest_ports[] = {19336, 18444};
+        for (const uint16_t port : regtest_ports) {
+            std::string addr_str = "127.0.0.1:" + std::to_string(port);
+            LogInfo("TeslaChain regtest bootstrap: adding loopback peer %s\n", addr_str);
+            connman.AddAddrFetch(addr_str);
+        }
+        return;
+    }
+
+    // For non-regtest networks: use DNS seeds if configured.
+    if (!dns_seeds.empty()) {
+        for (const std::string& seed : dns_seeds) {
+            LogInfo("TeslaChain DNS seed: %s\n", seed);
+            connman.AddAddrFetch(seed);
+        }
+    } else {
+        // No DNS seeds configured — fall back to loopback.
+        // This allows a single-node "network" to function.
+        uint16_t default_port = chainparams.GetDefaultPort();
+        std::string addr_str = "127.0.0.1:" + std::to_string(default_port);
+        LogInfo("TeslaChain: no DNS seeds configured, adding loopback fallback %s\n",
+                addr_str);
+        connman.AddAddrFetch(addr_str);
+    }
+}
+
 // Determine the "best" local address for a particular peer.
 // If none, return the unroutable 0.0.0.0 but filled in with
 // the normal parameters, since the IP may be changed to a useful
