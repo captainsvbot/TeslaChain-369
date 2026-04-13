@@ -41,6 +41,7 @@ class SPVProveTest(BitcoinTestFramework):
         self.chain = "regtest"
         self.setup_clean_chain = True
         self.extra_args = [["-nodebuglogfile"]] * self.num_nodes
+        self.uses_wallet = True
 
     def setup_network(self):
         self.setup_nodes()
@@ -55,22 +56,38 @@ class SPVProveTest(BitcoinTestFramework):
         else:
             return "LINK"
 
+    def get_wallet(self, node_index=0):
+        """Get wallet RPC for the given node."""
+        return self.nodes[node_index].get_wallet_rpc(self.default_wallet_name)
+
+    def get_testing_wallet_addr(self, node_index=0):
+        """Get address from the imported deterministic coinbase key.
+
+        This address is guaranteed to be in the wallet because it's imported
+        during test framework initialization. Mining to this address ensures
+        the wallet sees the coinbase funds.
+        """
+        return self.nodes[node_index].get_deterministic_priv_key().address
+
     def setup_spv_chain(self):
         """Mine a chain with AXIS blocks and return the node."""
         node = self.nodes[0]
-        mining_addr = node.get_deterministic_priv_key().address
+        wallet = self.get_wallet(0)
+        # Use wallet's own address for mining so coinbase rewards are credited to wallet
+        mining_addr = wallet.getnewaddress()
         # Mine enough blocks to have several AXIS blocks (heights 3, 6, 9, 12...)
         self.generatetoaddress(node, 12, mining_addr, sync_fun=self.no_op)
         self.sync_all()
-        return node
+        return node, wallet
 
     def test_spv_rpc_availability(self):
         """Test that SPV RPC methods exist in the binary."""
         self.log.info("Testing SPV RPC availability")
         node = self.nodes[0]
+        wallet = self.get_wallet(0)
 
         # Mine some blocks first so getaxisheaders has data
-        mining_addr = node.get_deterministic_priv_key().address
+        mining_addr = wallet.getnewaddress()
         self.generatetoaddress(node, 6, mining_addr, sync_fun=self.no_op)
 
         available = is_spv_rpc_available(node)
@@ -123,8 +140,7 @@ class SPVProveTest(BitcoinTestFramework):
         genesis_hash = node.getblockhash(0)
         h3 = headers_by_height.get(3)
         assert h3 is not None, "Height 3 header should exist"
-        assert_equal(h3["hashprevaxis"], genesis_hash,
-                    "Height 3 hashPrevAxis should be GENESIS hash")
+        assert_equal(h3["hashprevaxis"], genesis_hash)
 
         self.log.info(f"  Height 3 header: hashPrevAxis={h3['hashprevaxis'][:16]}..., "
                      f"hashAxisMerkleRoot={h3['hashaxismerkleroot'][:16]}...")
@@ -159,13 +175,17 @@ class SPVProveTest(BitcoinTestFramework):
         self.log.info("Testing getaxisproof basic functionality")
 
         node = self.nodes[0]
-        mining_addr = node.get_deterministic_priv_key().address
+        wallet = self.get_wallet(0)
+
+        # Use wallet's own address for mining so coinbase rewards are credited to wallet
+        mining_addr = wallet.getnewaddress()
 
         # Mine to height 6 to have AXIS blocks
         self.generatetoaddress(node, 6, mining_addr, sync_fun=self.no_op)
+        self.sync_mempools()
 
         # Create a transaction in the mempool
-        txid = node.sendtoaddress(node.getnewaddress(), 1)
+        txid = wallet.sendtoaddress(wallet.getnewaddress(), 1)
         self.log.info(f"  Created transaction: {txid}")
 
         # Mine it in an AXIS block (height 9)
@@ -189,12 +209,16 @@ class SPVProveTest(BitcoinTestFramework):
         self.log.info("Testing getaxisproof with LINK block transaction")
 
         node = self.nodes[0]
-        mining_addr = node.get_deterministic_priv_key().address
+        wallet = self.get_wallet(0)
+
+        # Use wallet's own address for mining so coinbase rewards are credited to wallet
+        mining_addr = wallet.getnewaddress()
 
         self.generatetoaddress(node, 4, mining_addr, sync_fun=self.no_op)
+        self.sync_mempools()
 
         # Create and mine transaction in a LINK block
-        txid = node.sendtoaddress(node.getnewaddress(), 0.5)
+        txid = wallet.sendtoaddress(wallet.getnewaddress(), 0.5)
         self.generatetoaddress(node, 1, mining_addr, sync_fun=self.no_op)
         height = node.getblockcount()
 
@@ -211,11 +235,15 @@ class SPVProveTest(BitcoinTestFramework):
         self.log.info("Testing verifyaxisproof validation")
 
         node = self.nodes[0]
-        mining_addr = node.get_deterministic_priv_key().address
+        wallet = self.get_wallet(0)
+
+        # Use wallet's own address for mining so coinbase rewards are credited to wallet
+        mining_addr = wallet.getnewaddress()
 
         self.generatetoaddress(node, 9, mining_addr, sync_fun=self.no_op)
+        self.sync_mempools()
 
-        txid = node.sendtoaddress(node.getnewaddress(), 0.1)
+        txid = wallet.sendtoaddress(wallet.getnewaddress(), 0.1)
         block_hash = self.generatetoaddress(node, 3, mining_addr, sync_fun=self.no_op)[0]
         height = node.getblock(block_hash)["height"]
 
