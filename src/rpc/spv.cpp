@@ -298,7 +298,7 @@ static RPCMethod verifyaxisproof()
         "Verifies an SPV proof for an AXIS block transaction.\n"
         "\nThis validates the merkle proof, PoW, and AXIS skip-chain.\n",
         {
-            {"proof", RPCArg::Type::OBJ, RPCArg::Optional::NO, "The SPV proof to verify"},
+            {"proof", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The SPV proof to verify"},
         },
         RPCResult{
             RPCResult::Type::OBJ, "", "",
