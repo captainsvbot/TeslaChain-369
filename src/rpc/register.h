@@ -22,7 +22,7 @@ void RegisterRawTransactionRPCCommands(CRPCTable &tableRPC);
 void RegisterSignMessageRPCCommands(CRPCTable&);
 void RegisterSignerRPCCommands(CRPCTable &tableRPC);
 void RegisterTxoutProofRPCCommands(CRPCTable&);
-void RegisterSPVRPCCommands(CRPCTable&);
+namespace spv { void RegisterSPVRPCCommands(CRPCTable&); }
 
 static inline void RegisterAllCoreRPCCommands(CRPCTable &t)
 {
@@ -39,7 +39,7 @@ static inline void RegisterAllCoreRPCCommands(CRPCTable &t)
     RegisterSignerRPCCommands(t);
 #endif // ENABLE_EXTERNAL_SIGNER
     RegisterTxoutProofRPCCommands(t);
-    RegisterSPVRPCCommands(t);
+    spv::RegisterSPVRPCCommands(t);
 }
 
 #endif // BITCOIN_RPC_REGISTER_H
