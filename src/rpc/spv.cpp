@@ -101,14 +101,11 @@ static RPCMethod getaxisproof()
                     CBlock block;
                     if (!chainman.m_blockman.ReadBlock(block, *pindex)) continue;
 
-                    // Build merkle tree
-                    std::vector<uint256> merkle = BlockMerkleRoot(block, nullptr).first;
-                    merkle.insert(merkle.begin(), BlockMerkleRoot(block, nullptr).first);
-
-                    // Search for transaction
+                    // Search for transaction and get merkle path
                     for (size_t i = 0; i < block.vtx.size(); i++) {
                         if (block.vtx[i]->GetHash().ToUint256() == txid) {
-                            merkleTree = merkle;
+                            // Get merkle path for this transaction
+                            merkleTree = TransactionMerklePath(block, static_cast<uint32_t>(i));
                             blockHeader = static_cast<CBlockHeader>(block);
                             blockHeight = height;
                             txIndex = static_cast<int>(i);

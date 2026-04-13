@@ -127,6 +127,7 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   policy/policy.cpp
   pow.cpp
   spv.cpp
+  spv_p2p.cpp
   protocol.cpp
   psbt.cpp
   rpc/rawtransaction_util.cpp

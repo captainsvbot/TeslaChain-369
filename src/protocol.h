@@ -259,6 +259,17 @@ inline constexpr const char* CFCHECKPT{"cfcheckpt"};
  */
 inline constexpr const char* WTXIDRELAY{"wtxidrelay"};
 /**
+ * TeslaChain AXIS P2P messages — see docs/P2P_DESIGN.md
+ * GET_AXIS_HEADERS: Request AXIS block headers using LINK-chain locator
+ * AXIS_HEADERS: Respond with 144-byte AXIS block headers
+ * GET_AXIS_BLOCKS: Request full AXIS blocks by hash
+ * AXIS_BLOCKS: Respond with full serialized AXIS blocks
+ */
+inline constexpr const char* GETAXISHEADERS{"getaxishead"};
+inline constexpr const char* AXISHEADERS{"axisheads"};
+inline constexpr const char* GETAXISBLOCKS{"getaxisblk"};
+inline constexpr const char* AXISBLOCKS{"axisblocks"};
+/**
  * Contains a 4-byte version number and an 8-byte salt.
  * The salt is used to compute short txids needed for efficient
  * txreconciliation, as described by BIP 330.
@@ -303,6 +314,11 @@ inline const std::array ALL_NET_MESSAGE_TYPES{std::to_array<std::string>({
     NetMsgType::CFCHECKPT,
     NetMsgType::WTXIDRELAY,
     NetMsgType::SENDTXRCNCL,
+    // TeslaChain AXIS messages
+    NetMsgType::GETAXISHEADERS,
+    NetMsgType::AXISHEADERS,
+    NetMsgType::GETAXISBLOCKS,
+    NetMsgType::AXISBLOCKS,
 })};
 
 /** nServices flags */
@@ -328,6 +344,9 @@ enum ServiceFlags : uint64_t {
 
     // NODE_P2P_V2 means the node supports BIP324 transport
     NODE_P2P_V2 = (1 << 11),
+
+    // TeslaChain: Node supports AXIS block headers and block relay (3-6-9 protocol)
+    NODE_AXIS = (1 << 12),
 
     // Bits 24-31 are reserved for temporary experiments. Just pick a bit that
     // isn't getting used, or one not being used much, and notify the
@@ -487,6 +506,10 @@ enum GetDataMsg : uint32_t {
     // MSG_FILTERED_WITNESS_BLOCK is defined in BIP144 as reserved for future
     // use and remains unused.
     // MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,
+
+    // TeslaChain AXIS types (3-6-9 protocol)
+    MSG_AXIS_BLOCK = 6,  //!< Full AXIS block (144-byte header + txs)
+    MSG_AXIS_HEADER = 7, //!< AXIS block header only (144 bytes)
 };
 
 /** inv message data */
@@ -510,6 +533,9 @@ public:
     bool IsMsgFilteredBlk() const { return type == MSG_FILTERED_BLOCK; }
     bool IsMsgCmpctBlk() const { return type == MSG_CMPCT_BLOCK; }
     bool IsMsgWitnessBlk() const { return type == MSG_WITNESS_BLOCK; }
+    // TeslaChain AXIS helpers
+    bool IsMsgAxisBlk() const { return type == MSG_AXIS_BLOCK; }
+    bool IsMsgAxisHdr() const { return type == MSG_AXIS_HEADER; }
 
     // Combined-message helper methods
     bool IsGenTxMsg() const
