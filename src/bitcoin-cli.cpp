@@ -430,6 +430,8 @@ private:
     std::string ChainToString() const
     {
         switch (gArgs.GetChainType()) {
+        case ChainType::TESLACHAIN:
+            return " teslachain";
         case ChainType::TESTNET4:
             return " testnet4";
         case ChainType::TESTNET:
