@@ -42,7 +42,8 @@ Bits:        0x1d00ffff
 AxilBlock:
 - prev_hash
 - merkle_root_of_past
-- 
+
+  
 ### Block Types
 
 | Type | Heights | Description |
