@@ -386,7 +386,7 @@ static RPCMethod verifyaxisproof()
             }
 
             // Parse PoW info
-            proof.nBits = static_cast<uint32_t>(ParseHashV(proofObj["nbits"], "nbits").GetUint64(0));
+            proof.nBits = proofObj["nbits"].getInt<uint32_t>();
             proof.blockHash = proof.targetHeader.hash;
 
             // Get pow limit from consensus
