@@ -11,48 +11,86 @@ TeslaChain is a Bitcoin Core fork implementing the **Triadic Consensus Protocol 
 
 ---
 
-## Quick Start
+## What's Working
 
-```bash
-# Build
-cd teslachain-core
-./autogen.sh && ./configure && make -j$(nproc)
+The following features are implemented and functional as of the April 13, 2026 merge:
 
-# Start regtest node
-./build/bin/bitcoind -regtest -listen=0
+### 144-Byte Block Headers with AXIS Fields
 
-# Mine blocks (RPC)
-./build/bin/bitcoin-cli -regtest generate 10
-
-# Check block types
-./build/bin/bitcoin-cli -regtest getblock 3   # AXIS block
-./build/bin/bitcoin-cli -regtest getblock 6   # AXIS block
-./build/bin/bitcoin-cli -regtest getblock 9   # SUPER_AXIS block
-```
-
----
-
-## Genesis Block
-
-The GENESIS block is the **immutable anchor** of the entire chain — timestamped to **April 10, 2026**.
+TeslaChain uses **144-byte block headers** (80-byte Bitcoin header + 64 bytes for AXIS skip-chain fields):
 
 ```
-Genesis Hash:  144cc8ae15a2ba8590e05fa4ab6315eca0f08b26f4f2ef298f7bea271280f353
-Merkle Root:  613d37b6ef1898496fe5cfd153adf86b2338d381c4c46e5d5b3092f94bcbcc6f
-Timestamp:    1775858400 (10/Apr/2026 22:00:00 UTC)
-Nonce:        745750 (mainnet) | 1 (testnet/regtest)
-Bits:         0x201fffff (TESLACHAIN) | 0x1d00ffff (Bitcoin compat)
+┌─────────────────────────────────────────────────────────────┐
+│ 80-byte Bitcoin Block Header                                │
+│ [version:4][prevblock:32][merkleroot:32][time:4][bits:4][nonce:4] │
+├─────────────────────────────────────────────────────────────┤
+│ 64-byte AXIS Fields                                         │
+│ [hashPrevAxisBlock:32][hashAxisMerkleRoot:32]               │
+└─────────────────────────────────────────────────────────────┘
+Total: 144 bytes
 ```
 
-**Genesis Message (Coinbase):**
-```
-"The Times 10/Apr/2026 TeslaChain begins: The future is electric"
-```
+`hashPrevAxisBlock` links each AXIS block to the previous AXIS block, forming an immutable skip-chain. `hashAxisMerkleRoot` commits to the full AXIS history, creating a cumulative merkle root traceable back to GENESIS.
 
-**Why GENESIS is immutable:**
-1. **Hardcoded in source** — `chainparams.cpp` bakes in the genesis hash
-2. **Protocol anchor** — Any block referencing a different genesis is rejected
-3. **No chain before it** — PoW cannot rewrite what doesn't exist
+### P2P Networking for AXIS Headers
+
+Full peer-to-peer networking for AXIS blocks is implemented. Four new P2P messages handle AXIS header and block relay:
+
+| Message | Direction | Purpose |
+|---------|-----------|---------|
+| `GETAXISHEADERS` | → peer | Request AXIS block headers using a LINK-chain locator |
+| `AXISHEADERS` | ← peer | Respond with AXIS headers (144 bytes each, up to 2000 per message) |
+| `GETAXISBLOCKS` | → peer | Request full AXIS blocks by hash |
+| `AXISBLOCKS` | ← peer | Respond with full serialized AXIS blocks |
+
+The LINK-chain locator design lets SPV clients request AXIS headers without first needing to know the AXIS chain — they reference their best-known LINK block, and the peer finds the next AXIS block. This avoids the chicken-and-egg problem of AXIS-only SPV sync.
+
+The `NODE_AXIS` service flag (`NODE_AXIS = (1 << 12)`) signals AXIS-capable peers. Nodes advertise this in their `VERSION` message and are preferred for AXIS sync.
+
+### SPV over P2P
+
+`src/spv_p2p.cpp` implements the SPV client protocol for TeslaChain. SPV clients can:
+- Connect to any peer (via DNS seed, hardcoded seed, or manual)
+- Send `GETAXISHEADERS` with a LINK-chain locator
+- Receive and validate AXIS headers (PoW, skip-chain links, merkle trail)
+- Build a local AXIS header chain without downloading full blocks
+
+SPV proof generation and verification is available via RPC (`getspvproof`, `verifyaxisproof`). The proof structure includes the transaction, its merkle branch, the target AXIS header, and the full AXIS header chain back to GENESIS. Verification checks three things: the merkle proof, the PoW on the target header, and the skip-chain continuity.
+
+### Node Discovery and Bootstrap
+
+Node discovery is implemented across all networks:
+
+- **DNS seeds** — configured per-network in `chainparamsseeds.h`. Placeholder seeds exist for mainnet/testnet; replace with real infrastructure before launch.
+- **Hardcoded seed nodes** — BIP155 serialized fixed seeds for networks without DNS.
+- **Peer address gossip** — standard `addr`/`addrv2` messages, filtered by `NODE_AXIS` flag.
+- **SPV client discovery flow** — SPV clients connect to any peer, send `GETADDR`, then connect to AXIS-capable peers for header sync.
+
+### SLASH Penalties for AXIS Violations
+
+When a block violates AXIS protocol rules, SLASH conditions apply. The penalty system is implemented in `src/validation.cpp` and configured via `AXISlashParams` in `src/consensus/params.h`. Violations include:
+
+- Missing or null `hashPrevAxisBlock` on an AXIS block
+- Missing or null `hashAxisMerkleRoot` on an AXIS block
+- `hashPrevAxisBlock` pointing to the wrong AXIS block (not height - 3)
+- `hashAxisMerkleRoot` not matching the computed cumulative merkle root
+- LINK blocks with non-null AXIS fields
+
+Penalties are enforced during both RPC-based block submission and P2P-based block propagation.
+
+### TLA+ Formal Specification
+
+A full TLA+ specification of the AXIS skip-chain protocol is in `docs/formal/`. The specification covers:
+
+- **Model:** `TeslaChainAxis.tla` — all block types (GENESIS, LINK, AXIS, SUPER_AXIS), skip-chain links, AXIS merkle chain construction
+- **Invariants:** Four protocol invariants are formalized and model-checked via TLC:
+  - `Inv1_AXIS_Contiguity` — every AXIS_i references AXIS_{i-1} via `hashPrevAxisBlock`
+  - `Inv2_GENESIS_Immutability` — GENESIS never changes
+  - `Inv3_No_Skip_Violations` — AXIS blocks only appear at heights 3, 6, 9, 12...
+  - `Inv4_Chain_Finality` — deep AXIS blocks cannot be modified without rewriting GENESIS
+- **Theorem:** `AXIS_IMMUTABILITY_THEOREM` proves that modifying any AXIS block at height H requires modifying all AXIS blocks from height 3 to H, including GENESIS. Proven via TLAPS.
+
+Run the model checker: `java -cp tla2tools.jar tlc.TLC TeslaChainAxis -constants GenesisHash="GENESIS",MaxHeight=12 -deadlock -workers 4`
 
 ---
 
@@ -66,21 +104,6 @@ Bits:         0x201fffff (TESLACHAIN) | 0x1d00ffff (Bitcoin compat)
 | LINK | 1, 2, 4, 5, 7, 8, 10, 11... | `hashPrevAxisBlock=0`, `hashAxisMerkleRoot=0` | Standard PoW blocks. Same as Bitcoin. |
 | AXIS | 3, 6, 12, 15, 18, 21... | Non-zero | Immutable by construction. Height % 3 == 0, not divisible by 9. |
 | SUPER_AXIS | 9, 18, 27, 36... | Non-zero | AXIS blocks at heights divisible by 9. |
-
-### Block Header Size
-
-TeslaChain uses **144-byte block headers** (80-byte Bitcoin header + 64 bytes for AXIS fields):
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 80-byte Bitcoin Block Header                                │
-│ [version:4][prevblock:32][merkleroot:32][time:4][bits:4][nonce:4] │
-├─────────────────────────────────────────────────────────────┤
-│ 64-byte AXIS Fields                                         │
-│ [hashPrevAxisBlock:32][hashAxisMerkleRoot:32]               │
-└─────────────────────────────────────────────────────────────┘
-Total: 144 bytes
-```
 
 ### The Skip-Chain Structure
 
@@ -127,9 +150,7 @@ And so on...
 
 This creates a **cumulative AXIS merkle chain** — each AXIS block includes all previous AXIS block hashes in its merkle root.
 
----
-
-## The Continuous AXIS Chain Rule
+### The Continuous AXIS Chain Rule
 
 **CRITICAL:** The skip-chain is a **linked list**. Each AXIS block must reference the AXIS block immediately before it.
 
@@ -139,22 +160,7 @@ Block 6's hashPrevAxisBlock MUST point to Block 3
 Block 3's hashPrevAxisBlock MUST point to GENESIS
 ```
 
-**You cannot skip:**
-```
-Block 9 → Block 3?  ❌ INVALID
-Block 9 → Block 6?  ✅ VALID (only if Block 6 exists)
-```
-
-**Consequence:** A broken link breaks everything after it. If any AXIS block is invalid or missing, ALL subsequent AXIS blocks become invalid.
-
-```
-GENESIS → Block 3 → Block 6 → Block 9 → Block 12 → ...
-    ✅         ✅        ❌        CANNOT EXIST ❌
-
-If Block 6 is missing/invalid:
-  → Block 9 has NO VALID AXIS PARENT → Block 9 is INVALID
-  → All subsequent AXIS blocks are INVALID
-```
+A broken link breaks everything after it. If any AXIS block is invalid or missing, ALL subsequent AXIS blocks become invalid.
 
 ---
 
@@ -179,39 +185,22 @@ ALL AXIS blocks (3, 6, 9, 12, 15, 18, 21...) are immutable without rewriting GEN
 
 ---
 
-## Deep Finality: Why the Past Becomes More Immutable
+## Genesis Block
 
-In Bitcoin, the further back a block is, the more **vulnerable** it becomes (more time for an attacker to build a longer chain).
+The GENESIS block is the **immutable anchor** of the entire chain — timestamped to **April 10, 2026**.
 
-In TeslaChain, the further back an AXIS block is, the more **immutable** it becomes — rewriting it requires rewriting every subsequent AXIS block back to GENESIS.
+```
+Genesis Hash:  144cc8ae15a2ba8590e05fa4ab6315eca0f08b26f4f2ef298f7bea271280f353
+Merkle Root:  613d37b6ef1898496fe5cfd153adf86b2338d381c4c46e5d5b3092f94bcbcc6f
+Timestamp:    1775858400 (10/Apr/2026 22:00:00 UTC)
+Nonce:        745750 (mainnet) | 1 (testnet/regtest)
+Bits:         0x201fffff (TESLACHAIN) | 0x1d00ffff (Bitcoin compat)
+```
 
-**Example: Rewriting Block 99 (AXIS)**
-To rewrite Block 99, an attacker must rewrite: GENESIS, Block 3, Block 6, Block 9... Block 96 (33 AXIS blocks total), each requiring proof-of-work.
-
-| Blocks Back | AXIS Blocks to Rewrite |
-|-------------|----------------------|
-| 10 | 10 |
-| 33 | 33 |
-| 100 | 100 |
-
-An AXIS block from April 10, 2026 (GENESIS day) is **more immutable** than one from 2036 — any attack needs to rewrite the entire AXIS chain since GENESIS.
-
----
-
-## What TeslaChain Prevents vs Does Not
-
-### ✅ What TeslaChain Prevents
-
-- **Double-spending AXIS-confirmed transactions** — Once in an AXIS block, a transaction is final
-- **Rewriting AXIS blocks** — Cannot be done without rewriting GENESIS
-- **Creating fake AXIS checkpoints** — Skip-chain must reference the actual previous AXIS block
-- **Broken AXIS chain propagation** — Nodes reject AXIS blocks with invalid skip-chain
-- **LINK modifications reaching AXIS** — Replacement chains hitting AXIS are DENIED
-
-### ❌ What TeslaChain Does Not Prevent
-
-- **Future reorgs** — After the present block, reorgs are still possible (but not past AXIS)
-- **51% attacks on LINK blocks** — LINK blocks remain probabilistic like Bitcoin
+**Genesis Message (Coinbase):**
+```
+"The Times 10/Apr/2026 TeslaChain begins: The future is electric"
+```
 
 ---
 
@@ -221,34 +210,133 @@ An AXIS block from April 10, 2026 (GENESIS day) is **more immutable** than one f
 
 | File | Purpose |
 |------|---------|
-| `src/node/miner.cpp` | AXIS field computation during block creation |
-| `src/validation.cpp` | Skip-chain validation in `ContextualCheckBlockHeader` |
+| `src/primitives/block.h` | `CBlockHeader` with 144-byte layout (80B + AXIS fields) |
+| `src/validation.cpp` | Skip-chain validation + SLASH penalty enforcement |
+| `src/consensus/params.h` | `AXISlashParams` SLASH penalty configuration |
+| `src/node/miner.cpp` | AXIS field auto-computation during block creation |
 | `src/hash.h` | `HashWriter` for AXIS merkle computation |
 | `src/kernel/chainparams.cpp` | Genesis params, network config |
-| `src/uint256.h` | 256-bit integer handling (little-endian) |
-| `test/functional/feature_triadic_consensus.py` | RPC-based 3-6-9 integration tests |
+| `src/protocol.h` | `NODE_AXIS` flag, `MSG_AXIS_BLOCK`, `MSG_AXIS_HEADER` inventory types |
+| `src/protocol.cpp` | `GETAXISHEADERS`, `AXISHEADERS`, `GETAXISBLOCKS`, `AXISBLOCKS` message types |
+| `src/net_processing.cpp` | P2P message handlers for AXIS header/block sync |
+| `src/net.cpp` | AXIS DNS seed queries, AXIS peer selection |
+| `src/chainparamsseeds.h` | DNS seeds and fixed seed nodes per network |
+| `src/spv.h` / `src/spv.cpp` | SPV proof generation (merkle path, AXIS chain) |
+| `src/spv_p2p.h` / `src/spv_p2p.cpp` | SPV client protocol over P2P (header sync, proof exchange) |
+| `src/rpc/spv.cpp` | `getspvproof` and `verifyaxisproof` RPC commands |
+| `docs/formal/TeslaChainAxis.tla` | TLA+ specification of AXIS skip-chain |
+| `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla` | TLAPS proofs of AXIS immutability |
 
-### C++ Validation Flow
+### Validation Flow (P2P)
 
 ```
-ContextualCheckBlockHeader()
-  ├── Check PoW (unchanged from Bitcoin)
-  ├── Check timestamp
-  └── If AXIS block (height % 3 == 0):
-      ├── hashPrevAxisBlock must be NON-ZERO
-      ├── hashAxisMerkleRoot must be NON-ZERO
-      ├── hashPrevAxisBlock → previous AXIS block (height - 3)
-      ├── If height == 3: hashAxisMerkleRoot == GENESIS hash
-      └── If height > 3: hashAxisMerkleRoot == Hash(prev_AXIS_merkle || prev_AXIS_hash)
+On receiving AXIS_HEADERS from untrusted peer:
+  1. Parse 144-byte headers
+  2. Check PoW (DoS: +50 if invalid)
+  3. Check hashPrevBlock connects to known chain
+  4. If AXIS block:
+       - hashPrevAxisBlock must be NON-ZERO (DoS: +10)
+       - hashAxisMerkleRoot must be NON-ZERO (DoS: +10)
+       - hashPrevAxisBlock → previous AXIS block at height-3 (DoS: +10)
+       - hashAxisMerkleRoot matches computed cumulative merkle (DoS: +10)
+  5. If LINK block:
+       - hashPrevAxisBlock must be ZERO (DoS: +10)
+       - hashAxisMerkleRoot must be ZERO (DoS: +10)
+  6. Accumulate DoS score; ban peer above threshold
 ```
 
-### Mining Auto-Computation
+### SPV Proof Structure
 
-When `CreateNewBlock()` mines an AXIS block, it automatically computes:
-- `hashPrevAxisBlock` = hash of previous AXIS block
-- `hashAxisMerkleRoot` = cumulative AXIS merkle root
+```cpp
+struct AxisSPVProof {
+    uint256 txid;
+    uint32_t txIndex;          // position in AXIS block merkle tree
+    std::vector<uint256> merkleBranch;  // merkle path to root
+    CBlockHeader targetHeader; // the AXIS block header (144 bytes)
+    std::vector<CBlockHeader> axisChain; // all AXIS headers GENESIS → target
+};
+```
 
-LINK blocks get `hashPrevAxisBlock = 0` and `hashAxisMerkleRoot = 0`.
+Verification checks three independently:
+- **Merkle proof** — `VerifyMerkleProof(txid, merkleBranch, targetHeader.hash)` 
+- **PoW** — `VerifyAxisPoW(targetHeader, powLimit)`
+- **Skip-chain** — `VerifyAxisChain(axisChain, targetHeader.hash)`
+
+---
+
+## Quick Start
+
+```bash
+# Build
+cd teslachain-core
+./autogen.sh && ./configure && make -j$(nproc)
+
+# Start regtest node (no P2P listening for local testing)
+./build/src/bitcoind -regtest -listen=0
+
+# Mine blocks (RPC)
+./build/src/bitcoin-cli -regtest generate 10
+
+# Check block types
+./build/src/bitcoin-cli -regtest getblock 3   # AXIS block
+./build/src/bitcoin-cli -regtest getblock 6   # AXIS block
+./build/src/bitcoin-cli -regtest getblock 9   # SUPER_AXIS block
+
+# Get SPV proof for a transaction in an AXIS block
+./build/src/bitcoin-cli -regtest getspvproof <txid> 6
+
+# Verify an SPV proof
+./build/src/bitcoin-cli -regtest verifyaxisproof '{"txid": "...", "height": 6, ...}'
+```
+
+---
+
+## Network Configuration
+
+| Network | P2P Port | RPC Port | Magic Bytes |
+|---------|----------|----------|-------------|
+| Mainnet | 19333 | 19344 | TBD |
+| Testnet | 19335 | 19347 | TBD |
+| Regtest | 19336 | 19348 | `f4b5e5f4` |
+
+### Service Flags
+
+| Flag | Value | Description |
+|------|-------|-------------|
+| `NODE_NETWORK` | (1 << 0) | Full block relay |
+| `NODE_WITNESS` | (1 << 1) | SegWit support |
+| `NODE_AXIS` | (1 << 12) | TeslaChain: supports AXIS header/block sync and SPV |
+
+---
+
+## Project Status
+
+### ✅ What's Implemented
+
+- 144-byte block headers with AXIS fields
+- AXIS validation in C++ (`ContextualCheckBlockHeader`)
+- Mining auto-computes AXIS fields (`CreateNewBlock`)
+- RPC-based block creation with correct AXIS fields
+- Genesis block loads correctly (mainnet/testnet/regtest)
+- `generatetoaddress` produces valid 3-6-9 chains
+- P2P block propagation between nodes
+- Skip-chain linked list rule enforced
+- AXIS merkle chain computation
+- Block 3 (first AXIS) anchored to GENESIS
+- P2P messages: `GETAXISHEADERS`, `AXISHEADERS`, `GETAXISBLOCKS`, `AXISBLOCKS`
+- SPV over P2P (`src/spv_p2p.cpp`)
+- SPV proof generation and verification RPC
+- Node discovery with DNS seeds and fixed seeds
+- `NODE_AXIS` service flag
+- SLASH penalty conditions for AXIS violations
+- TLA+ formal specification with model checking (TLC) and proofs (TLAPS)
+
+### 🔜 What's Remaining
+
+- **Mainnet launch** — Requires real seed nodes, DNS infrastructure, public network
+- **SPV merkle proofs for LINK chain** — Currently SPV proofs cover AXIS blocks only
+- **Compact block support (BIP 152)** — For AXIS blocks over P2P
+- **Lightning Network** — Future work
 
 ---
 
@@ -262,50 +350,14 @@ cd build && cmake .. && make -j4
 ./build/bin/test_bitcoin --run_test=triadic_consensus_tests
 
 # Run functional tests
-./build/bin/test_bitcoin --legacyrpc  # or use test runner:
 python3 test/functional/feature_triadic_consensus.py --configfile=build/test/config.ini
+
+# Run TLA+ model checker
+cd docs/formal
+java -cp tla2tools.jar tlc.TLC TeslaChainAxis \
+  -constants GenesisHash="GENESIS",MaxHeight=12 \
+  -deadlock -workers 4
 ```
-
-### Functional Test Coverage
-
-| Test | What it verifies |
-|------|-----------------|
-| `feature_triadic_consensus.py` | 144-byte headers, LINK/AXIS classification, RPC mining, multi-node sync |
-
----
-
-## Project Status
-
-### What's Working
-
-- [x] 144-byte block headers with AXIS fields
-- [x] AXIS validation in C++ (`ContextualCheckBlockHeader`)
-- [x] Mining auto-computes AXIS fields (`CreateNewBlock`)
-- [x] RPC-based block creation with correct AXIS fields
-- [x] Genesis block loads correctly (mainnet/testnet/regtest)
-- [x] `generatetoaddress` produces valid 3-6-9 chains
-- [x] P2P block propagation between nodes
-- [x] Skip-chain linked list rule enforced
-- [x] AXIS merkle chain computation
-- [x] Block 3 (first AXIS) anchored to GENESIS
-
-### What's Not Implemented
-
-- [ ] **Mainnet launch** — Requires bootstrap nodes, network infra
-- [ ] **Wallet GUI** — CLI wallet works; GUI not yet ported
-- [ ] **SLASH conditions** — No penalty mechanism for AXIS violations
-- [ ] **Formal verification** — TLA+/Coq proof of skip-chain consensus
-- [ ] **SPV prove** — Lightweight proof of AXIS inclusion
-
----
-
-## Network Configuration
-
-| Network | P2P Port | RPC Port | Magic Bytes |
-|---------|----------|----------|-------------|
-| Mainnet | 19333 | 19344 | TBD |
-| Testnet | 19335 | 19347 | TBD |
-| Regtest | 19336 | 19348 | `f4b5e5f4` |
 
 ---
 
@@ -313,15 +365,19 @@ python3 test/functional/feature_triadic_consensus.py --configfile=build/test/con
 
 **Primary:** https://github.com/captainsvbot/TeslaChain-369
 
-### Recent Commits
+**Working branch:** `tesla369/main`
+
+### Recent Merges (April 13, 2026)
 
 | Commit | Description |
 |--------|-------------|
-| `8f0949d7` | Merge: Take RPC-based test (our version) |
-| `aa011019` | fix: Correct AXIS skip-chain field computation in mining for block 3 |
-| `90ada4ece` | test: AXIS skip-chain P2P tests + validation fix |
-| `e95febaeb` | test: Triadic consensus tests + genesis nonce fixes |
-| `fad6cc46` | Merge pull request #1: Add AXIS fields to CBlockHeader |
+| `0ce078d` | feat: P2P networking for TeslaChain 144-byte AXIS headers |
+| `37d8192` | feat: node discovery and bootstrap for TeslaChain |
+| `8435784` | feat: SLASH conditions for TeslaChain AXIS violations |
+| `64ac1ed` | feat: SPV proof system for TeslaChain AXIS blocks |
+| `047e193` | docs: TLA+ formal specification for AXIS skip-chain consensus |
+| `9b58046` | docs: P2P networking design for TeslaChain 3-6-9 |
+| `f4c4d43` | docs: Hardened README with current architecture, tests, and status |
 
 ---
 
@@ -332,6 +388,8 @@ python3 test/functional/feature_triadic_consensus.py --configfile=build/test/con
 [2] Bitcoin Core Repository, https://github.com/bitcoin/bitcoin, 2024.
 
 [3] V. Buterin and V. Griffith, "Casper the Friendly Finality Gadget," arXiv:1710.09437, 2017.
+
+[4] L. Lamport, "Specifying Systems," https://lamport.azurewebsites.net/tla/specing-systems.html, 2002.
 
 ---
 
