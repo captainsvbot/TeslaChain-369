@@ -84,6 +84,22 @@ struct BIP9Deployment {
 /**
  * Parameters that influence chain consensus.
  */
+/**
+ * TeslaChain 3-6-9 Triadic Consensus Protocol — AXIS SLASH Parameters.
+ * When an AXIS block fails validation, a percentage of the coinbase reward
+ * is burned (forfeited to the network) and the peer is penalized.
+ */
+struct AXISlashParams {
+    /** Percentage of coinbase reward to burn when hashPrevAxisBlock is invalid (V1 severity). Default: 50% */
+    int burn_percentage_v1{50};
+    /** Percentage of coinbase reward to burn when hashAxisMerkleRoot is invalid (V2 severity). Default: 25% */
+    int burn_percentage_v2{25};
+    /** DoS score to assign to peer for AXIS V1 violations (hashPrevAxisBlock). Default: 50 */
+    int dos_score_v1{50};
+    /** DoS score to assign to peer for AXIS V2 violations (hashAxisMerkleRoot). Default: 25 */
+    int dos_score_v2{25};
+};
+
 struct Params {
     uint256 hashGenesisBlock;
     int nSubsidyHalvingInterval;
@@ -131,6 +147,12 @@ struct Params {
     uint256 nMinimumChainWork;
     /** By default assume that the signatures in ancestors of this block are valid */
     uint256 defaultAssumeValid;
+
+    /**
+     * TeslaChain 3-6-9: AXIS block violation penalty parameters.
+     * Controls burn percentage of coinbase for invalid AXIS fields and DoS scoring.
+     */
+    AXISlashParams axis_slash_params;
 
     /**
      * If true, witness commitments contain a payload equal to a Bitcoin Script solution

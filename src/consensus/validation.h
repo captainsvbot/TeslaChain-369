@@ -63,7 +63,10 @@ enum class BlockValidationResult {
     BLOCK_MISSING_PREV,      //!< We don't have the previous block the checked one is built on
     BLOCK_INVALID_PREV,      //!< A block this one builds on is invalid
     BLOCK_TIME_FUTURE,       //!< block timestamp was > 2 hours in the future (or our clock is bad)
-    BLOCK_HEADER_LOW_WORK    //!< the block header may be on a too-little-work chain
+    BLOCK_HEADER_LOW_WORK,   //< the block header may be on a too-little-work chain
+    // TeslaChain 3-6-9: AXIS SLASH violations — these carry a burn penalty
+    BLOCK_AXIS_INVALID_V1,   //< AXIS block hashPrevAxisBlock invalid — 50% burn + DoS
+    BLOCK_AXIS_INVALID_V2,   //< AXIS block hashAxisMerkleRoot invalid — 25% burn + DoS
 };
 
 
@@ -83,15 +86,18 @@ private:
     Result m_result{};
     std::string m_reject_reason;
     std::string m_debug_message;
+    int m_burn_pct{0};  //!< TeslaChain 3-6-9: % of coinbase to burn for AXIS violations (0 = no burn)
 
 public:
     bool Invalid(Result result,
                  const std::string& reject_reason = "",
-                 const std::string& debug_message = "")
+                 const std::string& debug_message = "",
+                 int burn_pct = 0)
     {
         m_result = result;
         m_reject_reason = reject_reason;
         m_debug_message = debug_message;
+        m_burn_pct = burn_pct;
         if (m_mode != ModeState::M_ERROR) m_mode = ModeState::M_INVALID;
         return false;
     }
@@ -108,17 +114,22 @@ public:
     Result GetResult() const { return m_result; }
     std::string GetRejectReason() const { return m_reject_reason; }
     std::string GetDebugMessage() const { return m_debug_message; }
+    int GetBurnPct() const { return m_burn_pct; }  //!< TeslaChain 3-6-9: % of coinbase to burn
     std::string ToString() const
     {
         if (IsValid()) {
             return "Valid";
         }
 
+        std::string res = m_reject_reason;
         if (!m_debug_message.empty()) {
-            return m_reject_reason + ", " + m_debug_message;
+            res += ", " + m_debug_message;
         }
-
-        return m_reject_reason;
+        // TeslaChain 3-6-9: append burn penalty if set
+        if (m_burn_pct > 0) {
+            res += " (burn=" + std::to_string(m_burn_pct) + "%)";
+        }
+        return res;
     }
 };
 
