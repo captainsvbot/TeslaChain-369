@@ -203,6 +203,7 @@ static RPCMethod getaxisheaders()
                 {RPCResult::Type::NUM, "startheight", "The first AXIS block height returned"},
                 {RPCResult::Type::NUM, "count", "Number of AXIS headers returned"},
                 {RPCResult::Type::NUM, "chainheight", "Current chain height"},
+                {RPCResult::Type::NUM, "actualcount", "Actual number of headers returned (may be less than count if chain ends)"},
                 {RPCResult::Type::ARR, "headers", "AXIS block headers", {
                     {RPCResult::Type::OBJ, "", "", {
                         {RPCResult::Type::NUM, "height", "Block height"},
@@ -298,7 +299,34 @@ static RPCMethod verifyaxisproof()
         "Verifies an SPV proof for an AXIS block transaction.\n"
         "\nThis validates the merkle proof, PoW, and AXIS skip-chain.\n",
         {
-            {"proof", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The SPV proof to verify"},
+            {"proof", RPCArg::Type::OBJ, RPCArg::Optional::NO, "The SPV proof to verify",
+                {
+                    {"txid", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The transaction ID"},
+                    {"height", RPCArg::Type::NUM, RPCArg::Optional::NO, "The block height containing the transaction"},
+                    {"blockhash", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The hash of the block containing the transaction"},
+                    {"txindex", RPCArg::Type::NUM, RPCArg::Optional::NO, "The transaction index in the block"},
+                    {"targetheader", RPCArg::Type::OBJ, RPCArg::Optional::NO, "The AXIS block header", {
+                        {"height", RPCArg::Type::NUM, RPCArg::Optional::NO, "Block height"},
+                        {"hash", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Block hash"},
+                        {"hashprevaxis", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Previous AXIS block hash"},
+                        {"hashaxismerkleroot", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Cumulative AXIS merkle root"},
+                    }},
+                    {"merklebranch", RPCArg::Type::ARR, RPCArg::Optional::NO, "Merkle proof branch", {
+                        {"", RPCArg::Type::OBJ, RPCArg::Optional::OMITTED, "", {
+                            {"hash", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Merkle tree node hash"},
+                            {"right", RPCArg::Type::BOOL, RPCArg::Optional::NO, "True if sibling is to the right"},
+                        }},
+                    }},
+                    {"axischain", RPCArg::Type::ARR, RPCArg::Optional::NO, "AXIS skip-chain headers back to GENESIS", {
+                        {"", RPCArg::Type::OBJ, RPCArg::Optional::OMITTED, "", {
+                            {"height", RPCArg::Type::NUM, RPCArg::Optional::NO, "AXIS block height"},
+                            {"hash", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "AXIS block hash"},
+                            {"hashprevaxis", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Previous AXIS block hash"},
+                            {"hashaxismerkleroot", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Cumulative AXIS merkle root"},
+                        }},
+                    }},
+                    {"nbits", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "Compact difficulty target"},
+                }},
         },
         RPCResult{
             RPCResult::Type::OBJ, "", "",
