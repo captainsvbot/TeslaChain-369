@@ -95,7 +95,8 @@ def nbits_str(nbits):
 def target_str(target):
     return f"{target:064x}"
 
-def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl=None, txlist=None):
+def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl=None, txlist=None,
+                  hashPrevAxisBlock=None, hashAxisMerkleRoot=None):
     """Create a block (with regtest difficulty)."""
     block = CBlock()
     if tmpl is None:
@@ -116,6 +117,9 @@ def create_block(hashprev=None, coinbase=None, ntime=None, *, version=None, tmpl
                 tx = tx_from_hex(tx)
             block.vtx.append(tx)
     block.hashMerkleRoot = block.calc_merkle_root()
+    # AXIS fields: default to 0 (uint256::ZERO), override for AXIS blocks
+    block.hashPrevAxisBlock = hashPrevAxisBlock if hashPrevAxisBlock is not None else 0
+    block.hashAxisMerkleRoot = hashAxisMerkleRoot if hashAxisMerkleRoot is not None else 0
     return block
 
 def create_empty_fork(node, fork_length=FORK_LENGTH):
