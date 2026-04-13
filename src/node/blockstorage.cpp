@@ -1051,10 +1051,10 @@ bool BlockManager::ReadBlock(CBlock& block, const FlatFilePos& pos, const std::o
         return false;
     }
 
-    const auto block_hash{block.GetHash()};
-
     // Check the header
-    if (!CheckProofOfWork(block_hash, block.nBits, GetConsensus())) {
+    const auto block_hash{block.GetHash()};
+    bool pow_result = CheckProofOfWork(block_hash, block.nBits, GetConsensus());
+    if (!pow_result) {
         LogError("Errors in block header at %s while reading block", pos.ToString());
         return false;
     }

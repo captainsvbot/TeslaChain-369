@@ -151,11 +151,6 @@ std::optional<arith_uint256> DeriveTarget(unsigned int nBits, const uint256 pow_
 
     bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
     arith_uint256 bnPowLimit = UintToArith256(pow_limit);
-    fprintf(stderr, "DEBUG DeriveTarget: nBits=0x%08x fNegative=%d fOverflow=%d bnTarget=%s bnPowLimit=%s bnTarget>bnPowLimit=%d\n",
-            nBits, fNegative, fOverflow,
-            ArithToUint256(bnTarget).ToString().c_str(),
-            ArithToUint256(bnPowLimit).ToString().c_str(),
-            bnTarget > bnPowLimit);
 
     // Check range
     if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(pow_limit))

@@ -250,7 +250,7 @@ public:
         genesis = CreateGenesisBlock(
             "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
             CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
-            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
+            1775858400, 2, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
         // No assertion - using custom TeslaChain genesis
 
@@ -624,7 +624,7 @@ public:
         genesis = CreateGenesisBlock(
             "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
             CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
-            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
+            1775858400, 1, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
@@ -733,7 +733,7 @@ public:
         genesis = CreateGenesisBlock(
             "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
             CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
-            1775858400, 1, 0x207fffff, 1, 50 * COIN);
+            1775858400, 9, 0x201fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear();

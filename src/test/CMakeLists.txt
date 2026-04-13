@@ -79,6 +79,7 @@ add_executable(test_bitcoin
   policyestimator_tests.cpp
   pool_tests.cpp
   pow_tests.cpp
+  triadic_consensus_tests.cpp
   prevector_tests.cpp
   private_broadcast_tests.cpp
   raii_event_tests.cpp
