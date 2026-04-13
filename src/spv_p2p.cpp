@@ -275,7 +275,7 @@ NodeId GetBestPeerForAxisHeaders()
     // TODO: Query PeerManager for a peer advertising NODE_AXIS.
     // For now, return NO_NODE. The caller should fall back to
     // local RPC mode or wait for NODE_AXIS peer discovery.
-    return NO_NODE;
+    return -1;
 }
 
 } // namespace spv
