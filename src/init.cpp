@@ -1371,7 +1371,7 @@ static ChainstateLoadResult InitAndLoadChainstate(
     chainman.snapshot_download_completed = [&node]() {
         if (!node.chainman->m_blockman.IsPruneMode()) {
             LogInfo("[snapshot] re-enabling NODE_NETWORK services");
-            node.connman->AddLocalServices(NODE_NETWORK);
+            node.connman->AddLocalServices(ServiceFlags(NODE_NETWORK | NODE_AXIS));
         }
         LogInfo("[snapshot] restarting indexes");
         // Drain the validation interface queue to ensure that the old indexes
@@ -2306,6 +2306,10 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     if (!node.connman->Start(scheduler, connOptions)) {
         return false;
     }
+
+    // TeslaChain node discovery: query DNS seeds and add peers.
+    // For regtest, this adds loopback peers so nodes can find each other.
+    StartDNSDiscovery(*node.connman);
 
     // ********************************************************* Step 13: finished
 

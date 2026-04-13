@@ -51,6 +51,7 @@
 class AddrMan;
 class BanMan;
 class CChainParams;
+class CConnman;
 class CNode;
 class CScheduler;
 struct bilingual_str;
@@ -170,6 +171,12 @@ void RemoveLocal(const CService& addr);
 bool SeenLocal(const CService& addr);
 bool IsLocal(const CService& addr);
 CService GetLocalAddress(const CNode& peer);
+
+/**
+ * Bootstrap node discovery. Queries DNS seeds (if configured) and adds them
+ * to the address fetch list. For regtest, adds loopback peers directly.
+ */
+void StartDNSDiscovery(CConnman& connman);
 
 extern bool fDiscover;
 extern bool fListen;
@@ -1420,6 +1427,7 @@ private:
     bool Bind(const CService& addr, unsigned int flags, NetPermissionFlags permissions);
     bool InitBinds(const Options& options);
 
+public:
     void ThreadOpenAddedConnections() EXCLUSIVE_LOCKS_REQUIRED(!m_added_nodes_mutex, !m_unused_i2p_sessions_mutex, !m_reconnections_mutex);
     void AddAddrFetch(const std::string& strDest) EXCLUSIVE_LOCKS_REQUIRED(!m_addr_fetches_mutex);
     void ProcessAddrFetch() EXCLUSIVE_LOCKS_REQUIRED(!m_addr_fetches_mutex, !m_unused_i2p_sessions_mutex);
