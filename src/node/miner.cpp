@@ -252,8 +252,9 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
     if (nHeight > 0 && nHeight % 3 == 0) {
         // AXIS block: populate skip-chain fields
         if (nHeight == 3) {
-            // First AXIS block anchors to GENESIS (hashPrevAxisBlock = uint256::ZERO by SetNull)
-            pblock->hashPrevAxisBlock = uint256::ZERO;
+            // First AXIS block: hashPrevAxisBlock = GENESIS hash, hashAxisMerkleRoot = GENESIS hash
+            pblock->hashPrevAxisBlock = pindexPrev->GetAncestor(0)->GetBlockHash();  // GENESIS hash
+            pblock->hashAxisMerkleRoot = pblock->hashPrevAxisBlock;  // First AXIS merkle entry = GENESIS
             LogInfo("SKIP-CHAIN: Block 3 (first AXIS) anchored to GENESIS\n");
         } else {
             // AXIS block at height > 3: hashPrevAxisBlock = hash of previous AXIS block

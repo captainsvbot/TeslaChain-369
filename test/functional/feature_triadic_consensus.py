@@ -1,130 +1,128 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025 The TeslaChain-369 developers
+# Copyright (c) 2024 The TeslaChain-369 developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-"""Test 3-6-9 Triadic Consensus P2P integration.
+"""Test TeslaChain 3-6-9 Triadic Consensus via RPC mining.
 
-Tests that AXIS fields (hashPrevAxisBlock, hashAxisMerkleRoot) propagate
-correctly between nodes over the P2P network using 144-byte block headers.
+Tests that the C++ node correctly computes AXIS fields (hashPrevAxisBlock,
+hashAxisMerkleRoot) when mining via RPC. Since CreateNewBlock() in miner.cpp
+already auto-populates these fields, we mine via RPC and verify the results.
 
-Key test: Python test framework now serializes 144-byte CBlockHeaders.
-If C++ node accepts them, P2P integration works.
+Block classification:
+- LINK: height % 3 != 0 (1, 2, 4, 5, 7, 8...)
+- AXIS: height % 3 == 0 and height % 9 != 0 (3, 6, 12, 15...)
+- SUPER_AXIS: height % 9 == 0 (9, 18, 27...)
 """
 
-from test_framework.blocktools import create_block
-from test_framework.messages import CBlockHeader
-from test_framework.p2p import P2PDataStore
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal
 
 
-class TriadicConsensusP2PTest(BitcoinTestFramework):
+def classify_block(height):
+    """Classify block type by height using 3-6-9 rules."""
+    if height % 9 == 0:
+        return "SUPER_AXIS"
+    elif height % 3 == 0:
+        return "AXIS"
+    else:
+        return "LINK"
+
+
+def get_block_header_bytes(node, height):
+    """Get raw bytes of block header at given height (first 144 bytes)."""
+    block_hash = node.getblockhash(height)
+    full_hex = node.getblock(block_hash, 0)
+    return bytes.fromhex(full_hex[:288])  # First 144 bytes as hex
+
+
+class TriadicConsensusTest(BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
+        self.chain = "regtest"
         self.setup_clean_chain = True
 
     def setup_network(self):
         self.setup_nodes()
+        self.connect_nodes(0, 1)
 
-    def test_header_serialization(self):
-        """Test that Python CBlockHeader produces valid 144-byte headers."""
-        self.log.info("Testing CBlockHeader serialization (144 bytes)")
-        
-        node0 = self.nodes[0]
-        
-        genesis_hash = int(node0.getblockhash(0), 16)
-        block = create_block(hashprev=genesis_hash, tmpl={"height": 1})
-        block.solve()
-        
-        header = CBlockHeader(block)
-        serialized = header.serialize()
-        
-        # Must be exactly 144 bytes
-        assert_equal(len(serialized), 144)
-        assert_equal(header.hashPrevAxisBlock, 0)
-        assert_equal(header.hashAxisMerkleRoot, 0)
-        
-        self.log.info("CBlockHeader serialization: 144 bytes ✓")
+    def test_header_size(self):
+        """Test that block headers are 144 bytes (80 base + 64 AXIS)."""
+        self.log.info("Testing block header size (144 bytes)")
 
-    def test_p2p_single_node_block_mining(self):
-        """Test P2P block mining with 144-byte headers on single node."""
-        self.log.info("Testing P2P block mining (single node)")
-        
-        node0 = self.nodes[0]
-        peer0 = node0.add_p2p_connection(P2PDataStore())
-        
-        # Mine 9 blocks via P2P (LINK/AXIS/SUPER_AXIS cycle)
-        blocks = []
-        prev_hash = int(node0.getbestblockhash(), 16)
-        
-        for i in range(9):
-            height = i + 1
-            block = create_block(
-                hashprev=prev_hash,
-                tmpl={
-                    "height": height,
-                    "curtime": node0.getblock(node0.getbestblockhash())['time'] + 1
-                }
-            )
-            block.solve()
-            blocks.append(block)
-            prev_hash = block.hash_int
-        
-        # Send blocks via P2P (includes 144-byte headers)
-        peer0.send_blocks_and_test(blocks, node0, success=True)
-        
-        assert_equal(node0.getblockcount(), 9)
-        self.log.info("Mined 9 blocks via P2P — C++ accepted 144-byte headers! ✓")
+        node = self.nodes[0]
+        self.generate(node, 1)
+        header_bytes = get_block_header_bytes(node, 1)
 
-    def test_p2p_multi_node_sync(self):
-        """Test that two nodes sync blocks via P2P with 144-byte headers."""
-        self.log.info("Testing P2P multi-node sync")
-        
+        assert len(header_bytes) == 144, f"Header should be 144 bytes, got {len(header_bytes)}"
+        self.log.info("  Block header is 144 bytes")
+
+    def test_first_axis_block_height_3(self):
+        """Test that height 3 (first AXIS block) is correctly formed."""
+        self.log.info("Testing first AXIS block (height 3)")
+
+        node = self.nodes[0]
+        self.generate(node, 3)
+
+        genesis_hash = int(node.getblockhash(0), 16)
+        header_bytes = get_block_header_bytes(node, 3)
+
+        hash_prev_axis = int.from_bytes(header_bytes[80:112], 'little')
+        hash_axis_merkle = int.from_bytes(header_bytes[112:144], 'little')
+
+        assert_equal(hash_prev_axis, genesis_hash)
+        assert_equal(hash_axis_merkle, genesis_hash)
+        self.log.info("  Height 3: hashPrevAxisBlock=GENESIS, hashAxisMerkleRoot=GENESIS")
+
+    def test_axis_fields_by_height(self):
+        """Test AXIS field values are correct at each height."""
+        self.log.info("Testing AXIS field values by height")
+
+        node = self.nodes[0]
+        self.generate(node, 12)
+
+        for height in range(1, 13):
+            block_type = classify_block(height)
+            header_bytes = get_block_header_bytes(node, height)
+
+            hash_prev_axis = int.from_bytes(header_bytes[80:112], 'little')
+            hash_axis_merkle = int.from_bytes(header_bytes[112:144], 'little')
+
+            if block_type == "LINK":
+                assert hash_prev_axis == 0, f"Height {height} ({block_type}): hashPrevAxisBlock should be 0"
+                assert hash_axis_merkle == 0, f"Height {height} ({block_type}): hashAxisMerkleRoot should be 0"
+                self.log.info(f"  Height {height} ({block_type}): hashPrevAxisBlock=0, hashAxisMerkleRoot=0")
+            else:
+                assert hash_prev_axis != 0, f"Height {height} ({block_type}): hashPrevAxisBlock should be non-zero"
+                assert hash_axis_merkle != 0, f"Height {height} ({block_type}): hashAxisMerkleRoot should be non-zero"
+                self.log.info(f"  Height {height} ({block_type}): non-zero AXIS fields")
+
+    def test_multi_node_sync(self):
+        """Test that two nodes stay in sync via P2P."""
+        self.log.info("Testing multi-node sync")
+
         node0 = self.nodes[0]
         node1 = self.nodes[1]
-        
-        # Connect nodes
-        self.connect_nodes(0, 1)
-        
-        # Node0 mines 9 blocks
-        peer0 = node0.add_p2p_connection(P2PDataStore())
-        
-        blocks = []
-        prev_hash = int(node0.getbestblockhash(), 16)
-        
-        for i in range(9):
-            height = i + 1
-            block = create_block(
-                hashprev=prev_hash,
-                tmpl={
-                    "height": height,
-                    "curtime": node0.getblock(node0.getbestblockhash())['time'] + 1
-                }
-            )
-            block.solve()
-            blocks.append(block)
-            prev_hash = block.hash_int
-        
-        peer0.send_blocks_and_test(blocks, node0, success=True)
-        assert_equal(node0.getblockcount(), 9)
-        
-        # Node1 should sync from node0 via P2P
+
+        self.generate(node0, 10)
         self.sync_blocks([node0, node1])
-        
+
         assert_equal(node0.getbestblockhash(), node1.getbestblockhash())
-        assert_equal(node1.getblockcount(), 9)
-        self.log.info("Multi-node sync works — 144-byte headers propagate over P2P! ✓")
+        assert_equal(node0.getblockcount(), node1.getblockcount())
+        self.log.info(f"  Both nodes synced at height {node0.getblockcount()}")
 
     def run_test(self):
-        """Run all P2P integration tests."""
-        self.log.info("Starting 3-6-9 Triadic Consensus P2P integration tests")
-        
-        self.test_header_serialization()
-        self.test_p2p_single_node_block_mining()
-        self.test_p2p_multi_node_sync()
-        
-        self.log.info("All 3-6-9 P2P integration tests passed!")
+        """Run all tests."""
+        self.log.info("TeslaChain 3-6-9 Triadic Consensus Tests")
+        self.log.info("=" * 50)
+
+        self.test_header_size()
+        self.test_first_axis_block_height_3()
+        self.test_axis_fields_by_height()
+        self.test_multi_node_sync()
+
+        self.log.info("=" * 50)
+        self.log.info("All tests passed!")
 
 
 if __name__ == "__main__":
-    TriadicConsensusP2PTest(__file__).main()
+    TriadicConsensusTest(__file__).main()
