@@ -120,6 +120,7 @@ GENESIS → Block 3 → Block 6 → Block 9 → Block 12 → ...
               → Block 9 is INVALID
               → All subsequent AXIS blocks are INVALID
 ```
+miners reject attacker chain because it violates a hard rule boundry.
 
 ---
 
