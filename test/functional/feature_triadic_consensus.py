@@ -41,6 +41,12 @@ class TriadicConsensusTest(BitcoinTestFramework):
         self.chain = "regtest"
         self.setup_clean_chain = True
 
+    def add_options(self, parser):
+        self.add_wallet_options(parser, disable_private_db=True)
+
+    def setup_nodes(self):
+        self.start_nodes(self.extra_args or [])
+
     def setup_network(self):
         self.setup_nodes()
         self.connect_nodes(0, 1)
