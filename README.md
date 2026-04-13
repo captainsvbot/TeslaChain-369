@@ -39,7 +39,10 @@ Bits:        0x1d00ffff
 ---
 
 ## The 3-6-9 Protocol
-
+AxilBlock:
+- prev_hash
+- merkle_root_of_past
+- 
 ### Block Types
 
 | Type | Heights | Description |
