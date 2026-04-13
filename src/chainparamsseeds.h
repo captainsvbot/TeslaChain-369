@@ -56,14 +56,17 @@ static const uint8_t chainparams_seed_main[] = {
 
 /** Testnet fixed seeds — empty for isolated TeslaChain */
 static const uint8_t chainparams_seed_test[] = {
+    0x00  // Placeholder: zero-length arrays not valid in C++, keep one byte
 };
 
 /** Testnet4 fixed seeds — empty for isolated TeslaChain */
 static const uint8_t chainparams_seed_testnet4[] = {
+    0x00  // Placeholder: zero-length arrays not valid in C++, keep one byte
 };
 
 /** Signet fixed seeds — empty for isolated TeslaChain */
 static const uint8_t chainparams_seed_signet[] = {
+    0x00  // Placeholder: zero-length arrays not valid in C++, keep one byte
 };
 
 #endif // BITCOIN_CHAINPARAMSSEEDS_H
