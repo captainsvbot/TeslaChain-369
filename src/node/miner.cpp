@@ -15,13 +15,16 @@
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
 #include <deploymentstatus.h>
+#include <hash.h>
 #include <logging.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
+#include <node/protocol_version.h>
 #include <policy/feerate.h>
 #include <policy/policy.h>
 #include <pow.h>
 #include <primitives/transaction.h>
+#include <serialize.h>
 #include <util/moneystr.h>
 #include <util/signalinterrupt.h>
 #include <util/time.h>
@@ -74,6 +77,29 @@ void RegenerateCommitments(CBlock& block, ChainstateManager& chainman)
     chainman.GenerateCoinbaseCommitment(block, prev_block);
 
     block.hashMerkleRoot = BlockMerkleRoot(block);
+
+    // TeslaChain: Regenerate AXIS skip-chain header fields if this is an AXIS block
+    if (prev_block) {
+        const int nHeight = prev_block->nHeight + 1;
+        if (nHeight > 0 && nHeight % 3 == 0) {
+            if (nHeight == 3) {
+                block.hashPrevAxisBlock = uint256::ZERO;
+            } else {
+                int nPrevAxisHeight = nHeight - 3;
+                const CBlockIndex* pPrevAxis = prev_block->GetAncestor(nPrevAxisHeight);
+                if (pPrevAxis) {
+                    block.hashPrevAxisBlock = pPrevAxis->GetBlockHash();
+                    HashWriter ss;
+                    ss << pPrevAxis->hashAxisMerkleRoot;
+                    ss << pPrevAxis->GetBlockHash();
+                    block.hashAxisMerkleRoot = ss.GetHash();
+                }
+            }
+        } else {
+            block.hashPrevAxisBlock = uint256::ZERO;
+            block.hashAxisMerkleRoot = uint256::ZERO;
+        }
+    }
 }
 
 static BlockAssembler::Options ClampOptions(BlockAssembler::Options options)
@@ -219,6 +245,48 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
     UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus());
     pblock->nNonce         = 0;
+
+    // ==========================================================================
+    // TeslaChain: Triadic Consensus Protocol (3-6-9) — Fill AXIS header fields
+    // ==========================================================================
+    if (nHeight > 0 && nHeight % 3 == 0) {
+        // AXIS block: populate skip-chain fields
+        if (nHeight == 3) {
+            // First AXIS block anchors to GENESIS (hashPrevAxisBlock = uint256::ZERO by SetNull)
+            pblock->hashPrevAxisBlock = uint256::ZERO;
+            LogInfo("SKIP-CHAIN: Block 3 (first AXIS) anchored to GENESIS\n");
+        } else {
+            // AXIS block at height > 3: hashPrevAxisBlock = hash of previous AXIS block
+            int nPrevAxisHeight = nHeight - 3;
+            const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
+            if (pPrevAxis) {
+                pblock->hashPrevAxisBlock = pPrevAxis->GetBlockHash();
+                // hashAxisMerkleRoot: append this AXIS block hash to the cumulative AXIS Merkle root
+                if (pPrevAxis->hashAxisMerkleRoot.IsNull()) {
+                    // Previous AXIS block had no cumulative root — start new trail
+                    pblock->hashAxisMerkleRoot = pPrevAxis->GetBlockHash();
+                } else {
+                    // Append: Hash(previous_cumulative_root || prev_AXIS_hash)
+                    HashWriter ss;
+                    ss << pPrevAxis->hashAxisMerkleRoot;
+                    ss << pPrevAxis->GetBlockHash();
+                    pblock->hashAxisMerkleRoot = ss.GetHash();
+                }
+                LogInfo("SKIP-CHAIN: Block %d hashPrevAxisBlock=%s, hashAxisMerkleRoot=%s\n",
+                        nHeight, pblock->hashPrevAxisBlock.ToString(), pblock->hashAxisMerkleRoot.ToString());
+            } else {
+                // Should not happen — previous AXIS should exist
+                pblock->hashPrevAxisBlock = uint256::ZERO;
+                pblock->hashAxisMerkleRoot = uint256::ZERO;
+                LogError("SKIP-CHAIN ERROR: Block %d AXIS but previous AXIS (height %d) not found!\n",
+                         nHeight, nPrevAxisHeight);
+            }
+        }
+    } else {
+        // LINK block or GENESIS: no AXIS skip-chain
+        pblock->hashPrevAxisBlock = uint256::ZERO;
+        pblock->hashAxisMerkleRoot = uint256::ZERO;
+    }
 
     if (m_options.test_block_validity) {
         // if nHeight <= 16, and include_dummy_extranonce=false this will fail due to bad-cb-length.

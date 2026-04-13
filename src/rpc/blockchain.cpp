@@ -178,6 +178,13 @@ UniValue blockheaderToJSON(const CBlockIndex& tip, const CBlockIndex& blockindex
         result.pushKV("previousblockhash", blockindex.pprev->GetBlockHash().GetHex());
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
+
+    // TeslaChain: Triadic Consensus Protocol (3-6-9) — AXIS skip-chain fields
+    if (!blockindex.hashPrevAxisBlock.IsNull() || blockindex.nHeight == 0) {
+        result.pushKV("prevaxisblockhash", blockindex.hashPrevAxisBlock.GetHex());
+        result.pushKV("axismerkleroot", blockindex.hashAxisMerkleRoot.GetHex());
+    }
+
     return result;
 }
 
@@ -626,6 +633,8 @@ static RPCMethod getblockheader()
                             {RPCResult::Type::NUM, "nTx", "The number of transactions in the block"},
                             {RPCResult::Type::STR_HEX, "previousblockhash", /*optional=*/true, "The hash of the previous block (if available)"},
                             {RPCResult::Type::STR_HEX, "nextblockhash", /*optional=*/true, "The hash of the next block (if available)"},
+                            {RPCResult::Type::STR_HEX, "prevaxisblockhash", /*optional=*/true, "TeslaChain: Hash of the previous AXIS block (AXIS blocks only, uint256::ZERO for GENESIS)"},
+                            {RPCResult::Type::STR_HEX, "axismerkleroot", /*optional=*/true, "TeslaChain: Cumulative Merkle root of AXIS chain (AXIS blocks only)"},
                         }},
                     RPCResult{"for verbose=false",
                         RPCResult::Type::STR_HEX, "", "A string that is serialized, hex-encoded data for block 'hash'"},
