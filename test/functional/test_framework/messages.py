@@ -728,7 +728,8 @@ class CTransaction:
 
 
 class CBlockHeader:
-    __slots__ = ("hashMerkleRoot", "hashPrevBlock", "nBits", "nNonce",
+    __slots__ = ("hashMerkleRoot", "hashPrevAxisBlock", "hashAxisMerkleRoot",
+                 "hashPrevBlock", "nBits", "nNonce",
                  "nTime", "nVersion")
 
     def __init__(self, header=None):
@@ -738,6 +739,8 @@ class CBlockHeader:
             self.nVersion = header.nVersion
             self.hashPrevBlock = header.hashPrevBlock
             self.hashMerkleRoot = header.hashMerkleRoot
+            self.hashPrevAxisBlock = getattr(header, 'hashPrevAxisBlock', 0)
+            self.hashAxisMerkleRoot = getattr(header, 'hashAxisMerkleRoot', 0)
             self.nTime = header.nTime
             self.nBits = header.nBits
             self.nNonce = header.nNonce
@@ -746,6 +749,8 @@ class CBlockHeader:
         self.nVersion = 4
         self.hashPrevBlock = 0
         self.hashMerkleRoot = 0
+        self.hashPrevAxisBlock = 0
+        self.hashAxisMerkleRoot = 0
         self.nTime = 0
         self.nBits = 0
         self.nNonce = 0
@@ -757,6 +762,8 @@ class CBlockHeader:
         self.nTime = int.from_bytes(f.read(4), "little")
         self.nBits = int.from_bytes(f.read(4), "little")
         self.nNonce = int.from_bytes(f.read(4), "little")
+        self.hashPrevAxisBlock = deser_uint256(f)
+        self.hashAxisMerkleRoot = deser_uint256(f)
 
     def serialize(self):
         return self._serialize_header()
@@ -769,6 +776,8 @@ class CBlockHeader:
         r += self.nTime.to_bytes(4, "little")
         r += self.nBits.to_bytes(4, "little")
         r += self.nNonce.to_bytes(4, "little")
+        r += ser_uint256(getattr(self, 'hashPrevAxisBlock', 0))
+        r += ser_uint256(getattr(self, 'hashAxisMerkleRoot', 0))
         return r
 
     @property
@@ -782,12 +791,16 @@ class CBlockHeader:
         return uint256_from_str(hash256(self._serialize_header()))
 
     def __repr__(self):
-        return "CBlockHeader(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x nTime=%s nBits=%08x nNonce=%08x)" \
+        return ("CBlockHeader(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x "
+                "nTime=%s nBits=%08x nNonce=%08x "
+                "hashPrevAxisBlock=%064x hashAxisMerkleRoot=%064x)") \
             % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
-               time.ctime(self.nTime), self.nBits, self.nNonce)
+               time.ctime(self.nTime), self.nBits, self.nNonce,
+               getattr(self, 'hashPrevAxisBlock', 0),
+               getattr(self, 'hashAxisMerkleRoot', 0))
 
 BLOCK_HEADER_SIZE = len(CBlockHeader().serialize())
-assert_equal(BLOCK_HEADER_SIZE, 80)
+assert_equal(BLOCK_HEADER_SIZE, 144)
 
 class CBlock(CBlockHeader):
     __slots__ = ("vtx",)
