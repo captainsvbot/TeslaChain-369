@@ -338,6 +338,8 @@ BASE_SCRIPTS = [
     'feature_chain_tiebreaks.py',
     'feature_triadic_consensus.py',
     'feature_triadic_consensus_p2p.py',
+    'feature_axis_slash.py',
+    'feature_spv_prove.py',
     'feature_fastprune.py',
     'feature_framework_miniwallet.py',
     'mempool_unbroadcast.py',
