@@ -1,13 +1,21 @@
-The MIT License (MIT)
+MIT License for Base Code + Proprietary Notice for TeslaChain Innovations
 
 Copyright (c) 2009-2026 The Bitcoin Core developers
 Copyright (c) 2009-2026 Bitcoin Developers
 Copyright (c) 2026 Elton Gashi. All Rights Reserved.
 
-The work/implementation/concept regarding TeslaChain, 369 skip-chain consensus layer, Triadic Consensus Protocol (3-6-9) is the proprietary intellectual property of Elton Gashi.
-Unauthorized reproduction, distribution, or modification of this work is strictly prohibited without prior written consent. 
-Additional components may be subject to seperate licensing terms. No Permission is granted for TeslaChain unless 
-explicitly provided by Elton Gashi.
+The base software (unmodified Bitcoin Core code and files) is licensed under the MIT License below.
+
+However, the work, implementation, and concept regarding TeslaChain/TeslaChain-369, the 369 skip-chain consensus layer, Triadic Consensus Protocol (3-6-9), AXIS/SUPER_AXIS block classification, hashPrevAxisBlock references, and all related modifications and additions are the proprietary intellectual property of Elton Gashi.
+
+These TeslaChain-specific components are released for experimental peer review and discussion only. 
+Unauthorized reproduction, distribution, modification, or commercial use of the TeslaChain innovations is strictly prohibited without prior written consent from Elton Gashi.
+No license or permission is granted for the TeslaChain-369 protocol or its implementation unless explicitly provided in writing by Elton Gashi.
+
+Additional components may be subject to separate licensing terms.
+
+================================================================================
+MIT License (Applies to unmodified Bitcoin Core base code)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -16,14 +24,13 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
