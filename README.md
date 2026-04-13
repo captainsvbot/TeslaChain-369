@@ -486,3 +486,9 @@ That's the 3-6-9 innovation: transforming probabilistic certainty into mathemati
 
 **Symbol:** TAC · **Max Supply:** 21,000,000 (like Bitcoin) · **Consensus:** PoW + 3-6-9 Skip-Chain
 **Genesis Date:** 10/Apr/2026
+
+
+## License
+
+This is a fork of Bitcoin Core. The Bitcoin Core base code is available under the MIT License (see COPYING file).  
+The TeslaChain/TeslaChain-369 protocol, 3-6-9 skip-chain consensus, AXIS/SUPER_AXIS layers, and related innovations are proprietary and released for peer review only. No permission is granted for reuse, modification, or deployment without explicit written consent from Elton Gashi.
