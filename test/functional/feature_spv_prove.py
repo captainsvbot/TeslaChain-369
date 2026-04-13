@@ -17,7 +17,7 @@ Bitcoin SPV (~48 bytes per block average due to 1-in-3 AXIS frequency).
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
-    assert_raises_jsonrpc,
+    assert_raises_rpc_error,
 )
 
 
@@ -144,7 +144,7 @@ class SPVProveTest(BitcoinTestFramework):
 
         if self.classify_block(height) == "LINK":
             # Should fail because transaction is not in AXIS block
-            assert_raises_jsonrpc(
+            assert_raises_rpc_error(
                 -5,  # RPC_INVALID_ADDRESS_OR_KEY
                 "Transaction not found",
                 node.getaxisproof,

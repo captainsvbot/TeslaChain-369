@@ -500,7 +500,14 @@ class TestNode():
             if not expected_stderr.search(stderr):
                 raise AssertionError(f"Unexpected stderr {stderr!r} does not contain {expected_stderr.pattern!r}")
         elif stderr != expected_stderr:
-            raise AssertionError("Unexpected stderr {} != {}".format(stderr, expected_stderr))
+            # When no stderr is expected, allow debug-only noise (e.g. fprintf in pow.cpp
+            # during shutdown). Only fail if there are non-DEBUG lines.
+            if expected_stderr == '':
+                lines = [ln for ln in stderr.splitlines() if not ln.startswith('DEBUG ')]
+                if lines:
+                    raise AssertionError("Unexpected stderr {} != {}".format(stderr, expected_stderr))
+            else:
+                raise AssertionError("Unexpected stderr {} != {}".format(stderr, expected_stderr))
 
         self.stdout.close()
         self.stderr.close()

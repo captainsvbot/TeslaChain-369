@@ -16,7 +16,7 @@ AXIS fields, then verifies rejection and logs.
 
 import time
 
-from test_framework.blocktools import create_block, create_coinbase, GENESIS_BIT
+from test_framework.blocktools import create_block, create_coinbase
 from test_framework.messages import CBlockHeader, ser_uint256
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (

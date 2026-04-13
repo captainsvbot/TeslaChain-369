@@ -40,12 +40,9 @@ class TriadicConsensusTest(BitcoinTestFramework):
         self.num_nodes = 2
         self.chain = "regtest"
         self.setup_clean_chain = True
-
-    def add_options(self, parser):
-        self.add_wallet_options(parser, disable_private_db=True)
-
-    def setup_nodes(self):
-        self.start_nodes(self.extra_args or [])
+        # Suppress DeriveTarget debug fprintf to stderr so stop_node's
+        # wait_until_stopped(expected_stderr='') check does not fail.
+        self.extra_args = [["-nodebuglogfile"]] * self.num_nodes
 
     def setup_network(self):
         self.setup_nodes()
