@@ -1,0 +1,22 @@
+# TLA+ Toolbox Project Configuration
+# For TeslaChainAxis.tla
+
+[jmarser]
+exclude=
+filename=
+
+[tlc]
+classprops=
+groupdepth=0
+maxheap=512
+numworkers=4
+seed=
+timeout=0
+
+[tr]
+reverse=
+sortorder=ASC
+textview=TV
+
+[layout]
+layout.orientation=auto
