@@ -34,12 +34,22 @@ public:
     uint32_t nBits;
     uint32_t nNonce;
 
+    // TeslaChain: Triadic Consensus Protocol (3-6-9)
+    // hashPrevAxisBlock: for AXIS blocks (height % 3 == 0), points to previous AXIS block.
+    // GENESIS (height 0) has hashPrevAxisBlock = uint256::ZERO.
+    // For LINK blocks, this field is unused (set to uint256::ZERO).
+    uint256 hashPrevAxisBlock;
+    // hashAxisMerkleRoot: Merkle root of all AXIS block hashes from GENESIS to this AXIS block.
+    // Creates an immutable audit trail of the entire AXIS chain.
+    // For LINK blocks, this field is unused (set to uint256::ZERO).
+    uint256 hashAxisMerkleRoot;
+
     CBlockHeader()
     {
         SetNull();
     }
 
-    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce); }
+    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce, obj.hashPrevAxisBlock, obj.hashAxisMerkleRoot); }
 
     void SetNull()
     {
@@ -49,6 +59,8 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        hashPrevAxisBlock.SetNull();
+        hashAxisMerkleRoot.SetNull();
     }
 
     bool IsNull() const

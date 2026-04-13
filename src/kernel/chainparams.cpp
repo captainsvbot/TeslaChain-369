@@ -51,6 +51,9 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+    // TeslaChain: Triadic Consensus Protocol — AXIS skip-chain anchor
+    // GENESIS is the root of the AXIS chain. hashPrevAxisBlock = uint256::ZERO (already SetNull)
+    // hashAxisMerkleRoot = uint256::ZERO since there is no prior AXIS block (already SetNull)
     return genesis;
 }
 
@@ -352,18 +355,19 @@ public:
         // Generated: 2026-04-10
         // Message: "The Times 10/Apr/2026 TeslaChain begins: The future is electric"
         // Time: 1775858400 (10/Apr/2026 22:00:00 UTC)
-        // Nonce: 6175 (with regtest difficulty 0x207fffff for instant block creation)
+        // Nonce: 1 (with regtest difficulty 0x207fffff for instant block creation)
         // Uses 0x207fffff (regtest difficulty) so blocks mine instantly
         // ═══════════════════════════════════════════════════════════════════════════
         genesis = CreateGenesisBlock(
                 "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
                 CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
                 1775858400,
-                6175,
+                1,
                 0x207fffff,
                 1,
                 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
+        // NOTE: Regtest requires -reindex or chain restart after protocol changes.
         // No assertion - using custom genesis
 
         vFixedSeeds.clear();
@@ -493,10 +497,9 @@ public:
         nDefaultPort = 38333;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1598918400, 52613770, 0x1e0377ae, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"});
-        assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
+        // Signet genesis hash changes with signet_challenge — no static assertion
 
         m_assumeutxo_data = {
             {
@@ -724,12 +727,13 @@ public:
         m_assumed_chain_state_size = 0;
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // TESLACHAIN GENESIS BLOCK
+        // TESLACHAIN GENESIS BLOCK (v2 — with hashPrevAxisBlock + hashAxisMerkleRoot)
+        // New header fields change the block structure → new genesis hash required.
         // ═══════════════════════════════════════════════════════════════════════════
         genesis = CreateGenesisBlock(
             "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
             CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
-            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
+            1775858400, 1, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear();

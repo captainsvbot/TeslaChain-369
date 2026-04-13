@@ -4117,8 +4117,74 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
                                  strprintf("rejected nVersion=0x%08x block", block.nVersion));
     }
 
-    
+
     // ============================================================================
+    // TeslaChain: Triadic Consensus Protocol (3-6-9) — AXIS Skip-Chain Validation
+    // Verify hashPrevAxisBlock and hashAxisMerkleRoot in the block header.
+    // This is checked at header level so that invalid AXIS chains can be rejected
+    // before downloading the full block.
+    // ============================================================================
+    if (nHeight > 0 && nHeight % 3 == 0) {
+        // This is an AXIS block — verify skip-chain fields are populated
+        if (block.hashPrevAxisBlock.IsNull()) {
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-no-prev-axis-block",
+                strprintf("AXIS block %d must have hashPrevAxisBlock set", nHeight));
+        }
+        if (block.hashAxisMerkleRoot.IsNull()) {
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-no-axis-merkle-root",
+                strprintf("AXIS block %d must have hashAxisMerkleRoot set", nHeight));
+        }
+
+        // Verify hashPrevAxisBlock points to the correct previous AXIS block
+        if (nHeight == 3) {
+            // First AXIS block must reference GENESIS (uint256::ZERO)
+            if (!block.hashPrevAxisBlock.IsNull()) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-genesis-hash-nonzero",
+                    strprintf("AXIS block 3 must have hashPrevAxisBlock=0 (GENESIS), got %s",
+                              block.hashPrevAxisBlock.ToString()));
+            }
+        } else {
+            // Block > 3: hashPrevAxisBlock must equal hash of previous AXIS block
+            int nPrevAxisHeight = nHeight - 3;
+            const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
+            if (!pPrevAxis) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-not-found",
+                    strprintf("AXIS block %d: previous AXIS block at height %d not found in chain", nHeight, nPrevAxisHeight));
+            }
+            if (block.hashPrevAxisBlock != pPrevAxis->GetBlockHash()) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-mismatch",
+                    strprintf("AXIS block %d hashPrevAxisBlock=%s != expected %s (block %d hash)",
+                              nHeight, block.hashPrevAxisBlock.ToString(), pPrevAxis->GetBlockHash().ToString(), nPrevAxisHeight));
+            }
+
+            // Verify hashAxisMerkleRoot: must equal Hash(prev_cumulative_root || prev_axis_hash)
+            uint256 expectedMerkle;
+            if (pPrevAxis->hashAxisMerkleRoot.IsNull()) {
+                // Previous AXIS was genesis-start: root = hash of that AXIS block
+                expectedMerkle = pPrevAxis->GetBlockHash();
+            } else {
+            HashWriter ss;
+            ss << pPrevAxis->hashAxisMerkleRoot;
+            ss << pPrevAxis->GetBlockHash();
+            expectedMerkle = ss.GetHash();
+            }
+            if (block.hashAxisMerkleRoot != expectedMerkle) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-merkle-root-mismatch",
+                    strprintf("AXIS block %d hashAxisMerkleRoot=%s != expected %s",
+                              nHeight, block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()));
+            }
+        }
+        LogInfo("SKIP-CHAIN: Block %d header validated — hashPrevAxisBlock=%s, hashAxisMerkleRoot=%s\n",
+                nHeight, block.hashPrevAxisBlock.ToString(), block.hashAxisMerkleRoot.ToString());
+    } else {
+        // LINK block or GENESIS: AXIS fields must be ZERO
+        if (!block.hashPrevAxisBlock.IsNull() || !block.hashAxisMerkleRoot.IsNull()) {
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-field-on-link-block",
+                strprintf("LINK block %d must have hashPrevAxisBlock=0 and hashAxisMerkleRoot=0", nHeight));
+        }
+    }
+    // ============================================================================
+
     return true;
 }
 
@@ -4182,52 +4248,6 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
     }
 
-    // ============================================================================
-    // TESLACHAIN SKIP-CHAIN VALIDATION (3-6-9 Protocol)
-    // For AXIS blocks (height % 3 == 0, starting at height 3), verify that
-    // the previous AXIS block hash is embedded in the coinbase.
-    // ============================================================================
-    // AXIS blocks create an immutable sub-chain anchored to GENESIS:
-    //   Block 3 → GENESIS (hash of block 0)
-    //   Block 6 → Block 3
-    //   Block 9 → Block 6 → Block 3 → GENESIS
-    //
-    // This provides DETERMINISTIC finality for AXIS blocks.
-    // An attacker cannot forge the AXIS chain without re-mining every AXIS block.
-    // ============================================================================
-    if (nHeight > 0 && nHeight % 3 == 0) {
-        int nPrevAxisHeight = nHeight - 3;
-        const CBlockIndex* pPrevAxis = pindexPrev ? pindexPrev->GetAncestor(nPrevAxisHeight) : nullptr;
-        if (pPrevAxis) {
-            // Verify previous AXIS hash is embedded in coinbase scriptSig
-            if (block.vtx.empty() || !block.vtx[0]->IsCoinBase()) {
-                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "skip-chain-no-coinbase");
-            }
-            const CScript& coinbaseSig = block.vtx[0]->vin[0].scriptSig;
-            uint256 prevAxisHash = pPrevAxis->GetBlockHash();
-            
-            // Search for prevAxisHash bytes directly in coinbaseSig
-            // The hash can appear at any position due to variable-length encoding
-            bool found = false;
-            for (size_t i = 0; i + 32 <= coinbaseSig.size(); i++) {
-                bool match = true;
-                for (size_t j = 0; j < 32; j++) {
-                    if (coinbaseSig[i+j] != prevAxisHash.data()[j]) { match = false; break; }
-                }
-                if (match) { found = true; break; }
-            }
-            
-            if (!found) {
-                LogInfo("SKIP-CHAIN: Block %d coinbase missing prev AXIS hash (Block %d)\n", nHeight, nPrevAxisHeight);
-                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "skip-chain-hash-missing",
-                    strprintf("AXIS block %d coinbase does not contain previous AXIS block hash (Block %d)", nHeight, nPrevAxisHeight));
-            }
-            LogInfo("SKIP-CHAIN: Block %d cryptographically linked to previous AXIS Block %d\n", nHeight, nPrevAxisHeight);
-        } else if (nHeight == 3) {
-            // Block 3 (first AXIS) is anchored to GENESIS - no previous AXIS to verify
-            LogInfo("SKIP-CHAIN: Block 3 (first AXIS) anchored to GENESIS\n");
-        }
-    }
     // ============================================================================
 
     return true;

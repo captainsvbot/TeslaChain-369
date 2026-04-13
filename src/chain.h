@@ -143,6 +143,12 @@ public:
     uint32_t nBits{0};
     uint32_t nNonce{0};
 
+    //! TeslaChain: Triadic Consensus Protocol (3-6-9)
+    //! hashPrevAxisBlock: previous AXIS block hash (uint256::ZERO for LINK/GENESIS)
+    uint256 hashPrevAxisBlock{};
+    //! hashAxisMerkleRoot: cumulative Merkle root of AXIS chain (uint256::ZERO for LINK blocks)
+    uint256 hashAxisMerkleRoot{};
+
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     //! Initialized to SEQ_ID_INIT_FROM_DISK{1} when loading blocks from disk, except for blocks
     //! belonging to the best chain which overwrite it to SEQ_ID_BEST_CHAIN_FROM_DISK{0}.
@@ -156,7 +162,9 @@ public:
           hashMerkleRoot{block.hashMerkleRoot},
           nTime{block.nTime},
           nBits{block.nBits},
-          nNonce{block.nNonce}
+          nNonce{block.nNonce},
+          hashPrevAxisBlock{block.hashPrevAxisBlock},
+          hashAxisMerkleRoot{block.hashAxisMerkleRoot}
     {
     }
 
@@ -192,6 +200,8 @@ public:
         block.nTime = nTime;
         block.nBits = nBits;
         block.nNonce = nNonce;
+        block.hashPrevAxisBlock = hashPrevAxisBlock;
+        block.hashAxisMerkleRoot = hashAxisMerkleRoot;
         return block;
     }
 
@@ -357,6 +367,8 @@ public:
         READWRITE(obj.nTime);
         READWRITE(obj.nBits);
         READWRITE(obj.nNonce);
+        READWRITE(obj.hashPrevAxisBlock);
+        READWRITE(obj.hashAxisMerkleRoot);
     }
 
     uint256 ConstructBlockHash() const
@@ -368,6 +380,8 @@ public:
         block.nTime = nTime;
         block.nBits = nBits;
         block.nNonce = nNonce;
+        block.hashPrevAxisBlock = hashPrevAxisBlock;
+        block.hashAxisMerkleRoot = hashAxisMerkleRoot;
         return block.GetHash();
     }
 
