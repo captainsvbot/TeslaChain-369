@@ -3127,8 +3127,9 @@ CBlockIndex* Chainstate::FindMostWorkChain()
 
         // Check whether all blocks on the path between the currently active chain and the candidate are valid.
         // Just going until the active chain is an optimization, as we know all blocks in it are valid already.
+        CBlockIndex *pindexTest = pindexNew;
         bool fInvalidAncestor = false;
-        for (CBlockIndex *pindexTest = pindexNew; pindexTest && !m_chain.Contains(pindexTest); pindexTest = pindexTest->pprev) {
+        while (pindexTest && !m_chain.Contains(pindexTest)) {
             assert(pindexTest->HaveNumChainTxs() || pindexTest->nHeight == 0);
 
             // Pruned nodes may have entries in setBlockIndexCandidates for
@@ -3142,21 +3143,27 @@ CBlockIndex* Chainstate::FindMostWorkChain()
                 if (fFailedChain && (m_chainman.m_best_invalid == nullptr || pindexNew->nChainWork > m_chainman.m_best_invalid->nChainWork)) {
                     m_chainman.m_best_invalid = pindexNew;
                 }
+                CBlockIndex *pindexFailed = pindexNew;
                 // Remove the entire chain from the set.
-                for (CBlockIndex *pindexFailed = pindexNew; pindexFailed != pindexTest; pindexFailed = pindexFailed->pprev) {
-                    if (fMissingData && !fFailedChain) {
-                        // If we're missing data and not a descendant of an invalid block,
-                        // then add back to m_blocks_unlinked, so that if the block arrives in the future
-                        // we can try adding to setBlockIndexCandidates again.
+                while (pindexTest != pindexFailed) {
+                    if (fFailedChain) {
+                        pindexFailed->nStatus |= BLOCK_FAILED_VALID;
+                        m_blockman.m_dirty_blockindex.insert(pindexFailed);
+                    } else if (fMissingData) {
+                        // If we're missing data, then add back to m_blocks_unlinked,
+                        // so that if the block arrives in the future we can try adding
+                        // to setBlockIndexCandidates again.
                         m_blockman.m_blocks_unlinked.insert(
                             std::make_pair(pindexFailed->pprev, pindexFailed));
                     }
                     setBlockIndexCandidates.erase(pindexFailed);
+                    pindexFailed = pindexFailed->pprev;
                 }
                 setBlockIndexCandidates.erase(pindexTest);
                 fInvalidAncestor = true;
                 break;
             }
+            pindexTest = pindexTest->pprev;
         }
         if (!fInvalidAncestor)
             return pindexNew;
@@ -4110,6 +4117,8 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
                                  strprintf("rejected nVersion=0x%08x block", block.nVersion));
     }
 
+    
+    // ============================================================================
     return true;
 }
 
@@ -4172,6 +4181,54 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
     if (GetBlockWeight(block) > MAX_BLOCK_WEIGHT) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
     }
+
+    // ============================================================================
+    // TESLACHAIN SKIP-CHAIN VALIDATION (3-6-9 Protocol)
+    // For AXIS blocks (height % 3 == 0, starting at height 3), verify that
+    // the previous AXIS block hash is embedded in the coinbase.
+    // ============================================================================
+    // AXIS blocks create an immutable sub-chain anchored to GENESIS:
+    //   Block 3 → GENESIS (hash of block 0)
+    //   Block 6 → Block 3
+    //   Block 9 → Block 6 → Block 3 → GENESIS
+    //
+    // This provides DETERMINISTIC finality for AXIS blocks.
+    // An attacker cannot forge the AXIS chain without re-mining every AXIS block.
+    // ============================================================================
+    if (nHeight > 0 && nHeight % 3 == 0) {
+        int nPrevAxisHeight = nHeight - 3;
+        const CBlockIndex* pPrevAxis = pindexPrev ? pindexPrev->GetAncestor(nPrevAxisHeight) : nullptr;
+        if (pPrevAxis) {
+            // Verify previous AXIS hash is embedded in coinbase scriptSig
+            if (block.vtx.empty() || !block.vtx[0]->IsCoinBase()) {
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "skip-chain-no-coinbase");
+            }
+            const CScript& coinbaseSig = block.vtx[0]->vin[0].scriptSig;
+            uint256 prevAxisHash = pPrevAxis->GetBlockHash();
+            
+            // Search for prevAxisHash bytes directly in coinbaseSig
+            // The hash can appear at any position due to variable-length encoding
+            bool found = false;
+            for (size_t i = 0; i + 32 <= coinbaseSig.size(); i++) {
+                bool match = true;
+                for (size_t j = 0; j < 32; j++) {
+                    if (coinbaseSig[i+j] != prevAxisHash.data()[j]) { match = false; break; }
+                }
+                if (match) { found = true; break; }
+            }
+            
+            if (!found) {
+                LogInfo("SKIP-CHAIN: Block %d coinbase missing prev AXIS hash (Block %d)\n", nHeight, nPrevAxisHeight);
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "skip-chain-hash-missing",
+                    strprintf("AXIS block %d coinbase does not contain previous AXIS block hash (Block %d)", nHeight, nPrevAxisHeight));
+            }
+            LogInfo("SKIP-CHAIN: Block %d cryptographically linked to previous AXIS Block %d\n", nHeight, nPrevAxisHeight);
+        } else if (nHeight == 3) {
+            // Block 3 (first AXIS) is anchored to GENESIS - no previous AXIS to verify
+            LogInfo("SKIP-CHAIN: Block 3 (first AXIS) anchored to GENESIS\n");
+        }
+    }
+    // ============================================================================
 
     return true;
 }

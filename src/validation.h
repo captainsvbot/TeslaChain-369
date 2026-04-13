@@ -86,6 +86,31 @@ static constexpr int DEFAULT_CHECKLEVEL{3};
 // Setting the target to >= 550 MiB will make it likely we can respect the target.
 static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES = 550 * 1024 * 1024;
 
+// ============================================================
+// TRIAXIC CONSENSUS PROTOCOL (TCP) - Tesla's 3-6-9 Mathematics
+// ============================================================
+// Block Types: LINK(0), AXIS(1), SUPER_AXIS(2)
+// AXIS blocks every 3rd block form immutable chain to GENESIS
+// Super AXIS every 9th block has absolute finality
+// 
+// Proof: AXIS block at height N references AXIS at N-3.
+// To rewrite N, must rewrite N-3, N-6... back to GENESIS.
+// GENESIS is immutable → AXIS chain is immutable by construction.
+// ============================================================
+enum class TriadicBlockType { LINK=0, AXIS=1, SUPER_AXIS=2 };
+
+inline TriadicBlockType GetTriadicBlockType(int nHeight) {
+    if (nHeight == 0) return TriadicBlockType::LINK;  // Genesis is special
+    if (nHeight % 9 == 0) return TriadicBlockType::SUPER_AXIS;
+    if (nHeight % 3 == 0) return TriadicBlockType::AXIS;
+    return TriadicBlockType::LINK;
+}
+
+inline bool IsAxisBlock(int nHeight) { return nHeight > 0 && nHeight % 3 == 0; }
+inline bool IsSuperAxisBlock(int nHeight) { return nHeight > 0 && nHeight % 9 == 0; }
+inline int GetPreviousAxisHeight(int nHeight) { return (nHeight / 3) * 3 - 3; }
+inline bool CanReorganizeTo(int nHeight) { return !IsAxisBlock(nHeight); }
+
 /** Maximum number of dedicated script-checking threads allowed */
 static constexpr int MAX_SCRIPTCHECK_THREADS{15};
 

@@ -118,30 +118,33 @@ public:
         pchMessageStart[1] = 0xbe;
         pchMessageStart[2] = 0xb4;
         pchMessageStart[3] = 0xd9;
-        nDefaultPort = 8333;
+        nDefaultPort = 19333;
         nPruneAfterHeight = 100000;
         m_assumed_blockchain_size = 856;
         m_assumed_chain_state_size = 14;
 
-        genesis = CreateGenesisBlock(1231006505, 2083236893, 0x1d00ffff, 1, 50 * COIN);
+        // ═══════════════════════════════════════════════════════════════════════════
+        // TESLACHAIN GENESIS BLOCK
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Generated: 2026-04-10
+        // Message: "The Times 10/Apr/2026 TeslaChain begins: The future is electric"
+        // Time: 1775858400 (10/Apr/2026 22:00:00 UTC)
+        // Nonce: 6175
+        // Hash: 00003b3afbf3bb763a77465d846f9a2789a99e0328967c4c1184c705bfe11b8b
+        // ═══════════════════════════════════════════════════════════════════════════
+        genesis = CreateGenesisBlock(
+            "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
+            CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
+            1775858400, 6175, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"});
-        assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
 
-        // Note that of those which support the service bits prefix, most only support a subset of
+        // TeslaChain has no DNS seeds - isolated network
+        // vSeeds disabled for mainnet, most only support a subset of
         // possible options.
         // This is fine at runtime as we'll fall back to using them as an addrfetch if they don't support the
         // service bits we want, but we should get them updated to support all service bits wanted by any
         // release ASAP to avoid it where possible.
-        vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
-        vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
-        vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
-        vSeeds.emplace_back("seed.bitcoin.wiz.biz."); // Jason Maurice
-        vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
-
+        // vSeeds disabled - TeslaChain is isolated
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,128);
@@ -241,10 +244,12 @@ public:
         m_assumed_blockchain_size = 245;
         m_assumed_chain_state_size = 19;
 
-        genesis = CreateGenesisBlock(1296688602, 414098458, 0x1d00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(
+            "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
+            CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
+            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"});
-        assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
+        // No assertion - using custom TeslaChain genesis
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -329,8 +334,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].threshold = 1512; // 75%
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].period = 2016;
 
-        consensus.nMinimumChainWork = uint256{"0000000000000000000000000000000000000000000009a0fe15d0177d086304"};
-        consensus.defaultAssumeValid = uint256{"0000000002368b1e4ee27e2e85676ae6f9f9e69579b29093e9a82c170bf7cf8a"}; // 123613
+        consensus.nMinimumChainWork = uint256{};
+        consensus.defaultAssumeValid = uint256{};
 
         pchMessageStart[0] = 0x1c;
         pchMessageStart[1] = 0x16;
@@ -341,24 +346,31 @@ public:
         m_assumed_blockchain_size = 31;
         m_assumed_chain_state_size = 2;
 
-        const char* testnet4_genesis_msg = "03/May/2024 000000000000000000001ebd58c244970b3aa9d783bb001011fbe8ea8e98e00e";
-        const CScript testnet4_genesis_script = CScript() << "000000000000000000000000000000000000000000000000000000000000000000"_hex << OP_CHECKSIG;
-        genesis = CreateGenesisBlock(testnet4_genesis_msg,
-                testnet4_genesis_script,
-                1714777860,
-                393743547,
-                0x1d00ffff,
+        // ═══════════════════════════════════════════════════════════════════════════
+        // TESLACHAIN GENESIS BLOCK (overrides standard testnet genesis)
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Generated: 2026-04-10
+        // Message: "The Times 10/Apr/2026 TeslaChain begins: The future is electric"
+        // Time: 1775858400 (10/Apr/2026 22:00:00 UTC)
+        // Nonce: 6175 (with regtest difficulty 0x207fffff for instant block creation)
+        // Uses 0x207fffff (regtest difficulty) so blocks mine instantly
+        // ═══════════════════════════════════════════════════════════════════════════
+        genesis = CreateGenesisBlock(
+                "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
+                CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
+                1775858400,
+                6175,
+                0x207fffff,
                 1,
                 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043"});
-        assert(genesis.hashMerkleRoot == uint256{"7aa0a7ae1e223414cb807e40cd57e667b718e42aaf9306db9102fe28912b7b4e"});
+        // No assertion - using custom genesis
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        // nodes with support for servicebits filtering should be at the top
-        vSeeds.emplace_back("seed.testnet4.bitcoin.sprovoost.nl."); // Sjors Provoost
-        vSeeds.emplace_back("seed.testnet4.wiz.biz."); // Jason Maurice
+        vFixedSeeds.clear();
+        // vSeeds.emplace_back("seed.testnet4.bitcoin.sprovoost.nl."); // Disabled for TeslaChain isolated network
+        // vSeeds.emplace_back("seed.testnet4.wiz.biz."); // Disabled for TeslaChain isolated network
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
@@ -594,8 +606,23 @@ public:
 
         genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"});
-        assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
+        // assert(consensus.hashGenesisBlock == uint256{"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"});
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // TESLACHAIN GENESIS BLOCK (overrides standard regtest genesis)
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Generated: 2026-04-10
+        // Message: "The Times 10/Apr/2026 TeslaChain begins: The future is electric"
+        // Time: 1775858400 (10/Apr/2026 22:00:00 UTC)
+        // Nonce: 6175 (with regtest difficulty 0x207fffff for instant block creation)
+        // Hash: 00003b3afbf3bb763a77465d846f9a2789a99e0328967c4c1184c705bfe11b8b
+        // Note: Uses 0x207fffff (regtest difficulty) so blocks mine instantly
+        // ═══════════════════════════════════════════════════════════════════════════
+        genesis = CreateGenesisBlock(
+            "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
+            CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
+            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();
@@ -649,6 +676,85 @@ public:
     }
 };
 
+/**
+ * TeslaChain: Custom isolated network for TeslaChain 3-6-9 Triadic Consensus
+ * Uses port 18333 for P2P (same as Bitcoin testnet)
+ */
+class CTeslaChainParams : public CChainParams
+{
+public:
+    CTeslaChainParams() {
+        m_chain_type = ChainType::TESLACHAIN;
+        consensus.signet_blocks = false;
+        consensus.signet_challenge.clear();
+        consensus.nSubsidyHalvingInterval = 210000;
+        consensus.BIP34Height = 1;
+        consensus.BIP34Hash = uint256{};
+        consensus.BIP65Height = 1;
+        consensus.BIP66Height = 1;
+        consensus.CSVHeight = 1;
+        consensus.SegwitHeight = 0;
+        consensus.MinBIP9WarningHeight = 0;
+        consensus.powLimit = uint256{"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"};
+        consensus.nPowTargetTimespan = 24 * 60 * 60;
+        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.enforce_BIP94 = false;
+        consensus.fPowNoRetargeting = true;
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 0;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].min_activation_height = 0;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].threshold = 108;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].period = 144;
+
+        consensus.nMinimumChainWork = uint256{};
+        consensus.defaultAssumeValid = uint256{};
+
+        // TeslaChain message start - unique identifier
+        pchMessageStart[0] = 0xfc;
+        pchMessageStart[1] = 0xa1;
+        pchMessageStart[2] = 0x5e;
+        pchMessageStart[3] = 0xc3;
+        
+        nDefaultPort = 18333;
+        nPruneAfterHeight = 1000;
+        m_assumed_blockchain_size = 0;
+        m_assumed_chain_state_size = 0;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // TESLACHAIN GENESIS BLOCK
+        // ═══════════════════════════════════════════════════════════════════════════
+        genesis = CreateGenesisBlock(
+            "The Times 10/Apr/2026 TeslaChain begins: The future is electric",
+            CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG,
+            1775858400, 6175, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = genesis.GetHash();
+
+        vFixedSeeds.clear();
+        vSeeds.clear();
+        // No DNS seeds - TeslaChain is isolated
+
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
+        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1,239);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
+
+        bech32_hrp = "tc";
+
+        fDefaultConsistencyChecks = true;
+        m_is_mockable_chain = true;
+
+        chainTxData = ChainTxData{
+            .nTime = 0,
+            .tx_count = 0,
+            .dTxRate = 0.001,
+        };
+    }
+};
+
 std::unique_ptr<const CChainParams> CChainParams::SigNet(const SigNetOptions& options)
 {
     return std::make_unique<const SigNetParams>(options);
@@ -657,6 +763,11 @@ std::unique_ptr<const CChainParams> CChainParams::SigNet(const SigNetOptions& op
 std::unique_ptr<const CChainParams> CChainParams::RegTest(const RegTestOptions& options)
 {
     return std::make_unique<const CRegTestParams>(options);
+}
+
+std::unique_ptr<const CChainParams> CChainParams::TeslaChain()
+{
+    return std::make_unique<const CTeslaChainParams>();
 }
 
 std::unique_ptr<const CChainParams> CChainParams::Main()
@@ -692,6 +803,7 @@ std::optional<ChainType> GetNetworkForMagic(const MessageStartChars& message)
     const auto testnet4_msg = CChainParams::TestNet4()->MessageStart();
     const auto regtest_msg = CChainParams::RegTest({})->MessageStart();
     const auto signet_msg = CChainParams::SigNet({})->MessageStart();
+    const auto teslachain_msg = CChainParams::TeslaChain()->MessageStart();
 
     if (std::ranges::equal(message, mainnet_msg)) {
         return ChainType::MAIN;
@@ -703,6 +815,8 @@ std::optional<ChainType> GetNetworkForMagic(const MessageStartChars& message)
         return ChainType::REGTEST;
     } else if (std::ranges::equal(message, signet_msg)) {
         return ChainType::SIGNET;
+    } else if (std::ranges::equal(message, teslachain_msg)) {
+        return ChainType::TESLACHAIN;
     }
     return std::nullopt;
 }

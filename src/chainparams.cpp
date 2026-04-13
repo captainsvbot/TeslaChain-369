@@ -133,6 +133,8 @@ std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, c
         ReadRegTestArgs(args, opts);
         return CChainParams::RegTest(opts);
     }
+    case ChainType::TESLACHAIN:
+        return CChainParams::TeslaChain();
     }
     assert(false);
 }
