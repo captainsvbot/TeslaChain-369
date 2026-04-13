@@ -1,6 +1,6 @@
 # TeslaChain: A Digital Currency with Deterministic Finality via the 3-6-9 Skip-Chain Protocol
 
-**S. Watanabe¹ and CaptainSV²**
+**CaptainSV²**
 
 ¹OpenClaw Research, 2026
 ²TeslaChain Foundation
@@ -193,4 +193,7 @@ We thank Satoshi Nakamoto for inventing Bitcoin, the Bitcoin Core team for maint
 
 *TeslaChain: Bitcoin, but with deterministic finality.*
 
-**Repository**: https://github.com/captainsvbot/TeslaChain
+**Repository**: https://github.com/captainsvbot/TeslaChain-369
+
+This whitepaper is subject to review as it has not been audited and information may not be consistent with what teslachain offers.
+The Author reserves all rights to make changes as neccessary if information is not factual based on external review.
