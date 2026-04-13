@@ -126,6 +126,7 @@ add_library(bitcoin_common STATIC EXCLUDE_FROM_ALL
   policy/feerate.cpp
   policy/policy.cpp
   pow.cpp
+  spv.cpp
   protocol.cpp
   psbt.cpp
   rpc/rawtransaction_util.cpp
@@ -257,6 +258,7 @@ add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   rpc/output_script.cpp
   rpc/rawtransaction.cpp
   rpc/server.cpp
+  rpc/spv.cpp
   rpc/server_util.cpp
   rpc/signmessage.cpp
   rpc/txoutproof.cpp
