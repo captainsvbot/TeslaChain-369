@@ -35,7 +35,7 @@ static RPCMethod getaxisproof()
         "\nThis constructs a proof that allows lightweight clients to verify "
         "that a transaction was included in an AXIS block without downloading the full chain.\n",
         {
-            {"txid", RPCArg::Type::STR_HEX, RPCArg::Optional::NO, "The transaction ID to prove"},
+            {"txid", RPCArg::Type::STR, RPCArg::Optional::NO, "The transaction ID to prove"},
         },
         RPCResult{
             RPCResult::Type::OBJ, "", "",
