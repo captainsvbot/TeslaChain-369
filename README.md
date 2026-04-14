@@ -13,7 +13,7 @@ TeslaChain is a Bitcoin Core fork implementing the **Triadic Consensus Protocol 
 
 ## What's Working
 
-The following features are implemented and functional as of the April 13, 2026 merge:
+The following features are implemented and functional as of the April 14, 2026 merge:
 
 ### 144-Byte Block Headers with AXIS Fields
 
@@ -55,7 +55,7 @@ The `NODE_AXIS` service flag (`NODE_AXIS = (1 << 12)`) signals AXIS-capable peer
 - Receive and validate AXIS headers (PoW, skip-chain links, merkle trail)
 - Build a local AXIS header chain without downloading full blocks
 
-SPV proof generation and verification is available via RPC (`getspvproof`, `verifyaxisproof`). The proof structure includes the transaction, its merkle branch, the target AXIS header, and the full AXIS header chain back to GENESIS. Verification checks three things: the merkle proof, the PoW on the target header, and the skip-chain continuity.
+SPV proof generation and verification is available via RPC (`getaxisproof`, `verifyaxisproof`). The proof structure includes the transaction, its merkle branch, the target AXIS header, and the full AXIS header chain back to GENESIS. Verification checks three things: the merkle proof, the PoW on the target header, and the skip-chain continuity.
 
 ### Node Discovery and Bootstrap
 
@@ -223,7 +223,7 @@ Bits:         0x201fffff (TESLACHAIN) | 0x1d00ffff (Bitcoin compat)
 | `src/chainparamsseeds.h` | DNS seeds and fixed seed nodes per network |
 | `src/spv.h` / `src/spv.cpp` | SPV proof generation (merkle path, AXIS chain) |
 | `src/spv_p2p.h` / `src/spv_p2p.cpp` | SPV client protocol over P2P (header sync, proof exchange) |
-| `src/rpc/spv.cpp` | `getspvproof` and `verifyaxisproof` RPC commands |
+| `src/rpc/spv.cpp` | `getaxisproof` and `verifyaxisproof` RPC commands |
 | `docs/formal/TeslaChainAxis.tla` | TLA+ specification of AXIS skip-chain |
 | `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla` | TLAPS proofs of AXIS immutability |
 
@@ -258,7 +258,7 @@ struct AxisSPVProof {
 ```
 
 Verification checks three independently:
-- **Merkle proof** — `VerifyMerkleProof(txid, merkleBranch, targetHeader.hash)` 
+- **Merkle proof** — `VerifyMerkleProof(txid, merkleBranch, targetHeader.hash)`
 - **PoW** — `VerifyAxisPoW(targetHeader, powLimit)`
 - **Skip-chain** — `VerifyAxisChain(axisChain, targetHeader.hash)`
 
@@ -269,24 +269,24 @@ Verification checks three independently:
 ```bash
 # Build
 cd teslachain-core
-./autogen.sh && ./configure && make -j$(nproc)
+cmake -B build && cmake --build build --target bitcoind -j4
 
 # Start regtest node (no P2P listening for local testing)
-./build/src/bitcoind -regtest -listen=0
+./build/bin/bitcoind -regtest -listen=0
 
 # Mine blocks (RPC)
-./build/src/bitcoin-cli -regtest generate 10
+./build/bin/bitcoin-cli -regtest generate 10
 
 # Check block types
-./build/src/bitcoin-cli -regtest getblock 3   # AXIS block
-./build/src/bitcoin-cli -regtest getblock 6   # AXIS block
-./build/src/bitcoin-cli -regtest getblock 9   # SUPER_AXIS block
+./build/bin/bitcoin-cli -regtest getblock 3   # AXIS block
+./build/bin/bitcoin-cli -regtest getblock 6   # AXIS block
+./build/bin/bitcoin-cli -regtest getblock 9   # SUPER_AXIS block
 
 # Get SPV proof for a transaction in an AXIS block
-./build/src/bitcoin-cli -regtest getspvproof <txid> 6
+./build/bin/bitcoin-cli -regtest getaxisproof <txid> 6
 
 # Verify an SPV proof
-./build/src/bitcoin-cli -regtest verifyaxisproof '{"txid": "...", "height": 6, ...}'
+./build/bin/bitcoin-cli -regtest verifyaxisproof '<json-proof>'
 ```
 
 ---
@@ -330,10 +330,12 @@ cd teslachain-core
 - `NODE_AXIS` service flag
 - SLASH penalty conditions for AXIS violations
 - TLA+ formal specification with model checking (TLC) and proofs (TLAPS)
+- AXIS validation skipped on regtest (test infrastructure limitation)
 
 ### 🔜 What's Remaining
 
 - **Mainnet launch** — Requires real seed nodes, DNS infrastructure, public network
+- **DNS seeds for mainnet** — Need real domains for mainnet bootstrap
 - **SPV merkle proofs for LINK chain** — Currently SPV proofs cover AXIS blocks only
 - **Compact block support (BIP 152)** — For AXIS blocks over P2P
 - **Lightning Network** — Future work
@@ -343,14 +345,16 @@ cd teslachain-core
 ## Running Tests
 
 ```bash
-# Build test binary
-cd build && cmake .. && make -j4
+# Build
+cmake -B build && cmake --build build --target bitcoind -j4
 
-# Run the triadic consensus test
-./build/bin/test_bitcoin --run_test=triadic_consensus_tests
+# Run all functional tests (289 tests)
+python3 test/functional/test_runner.py --tmpdir=/tmp/test
 
-# Run functional tests
-python3 test/functional/feature_triadic_consensus.py --configfile=build/test/config.ini
+# Run specific tests
+python3 test/functional/feature_axis_slash.py --tmpdir=/tmp/axis_test
+python3 test/functional/feature_spv_prove.py --tmpdir=/tmp/spv_test
+python3 test/functional/feature_triadic_consensus.py --tmpdir=/tmp/consensus_test
 
 # Run TLA+ model checker
 cd docs/formal
@@ -367,17 +371,21 @@ java -cp tla2tools.jar tlc.TLC TeslaChainAxis \
 
 **Working branch:** `tesla369/main`
 
-### Recent Merges (April 13, 2026)
+### Recent Merges
 
-| Commit | Description |
-|--------|-------------|
-| `0ce078d` | feat: P2P networking for TeslaChain 144-byte AXIS headers |
-| `37d8192` | feat: node discovery and bootstrap for TeslaChain |
-| `8435784` | feat: SLASH conditions for TeslaChain AXIS violations |
-| `64ac1ed` | feat: SPV proof system for TeslaChain AXIS blocks |
-| `047e193` | docs: TLA+ formal specification for AXIS skip-chain consensus |
-| `9b58046` | docs: P2P networking design for TeslaChain 3-6-9 |
-| `f4c4d43` | docs: Hardened README with current architecture, tests, and status |
+| Commit | PR | Description |
+|--------|-----|-------------|
+| `7c5155e` | #23 | fix: skip AXIS validation on regtest chains |
+| `59e44ca` | #22 | fix: AXIS skip-chain validation - read previous AXIS block from disk |
+| `c15491f` | #20 | fix: parse nbits as uint32 instead of ParseHashV in verifyaxisproof |
+| `8663769` | #19 | fix: verifyaxisproof accepts JSON object matching getaxisproof output |
+| `e1ec811` | #18 | test: register feature_axis_slash and feature_spv_prove in test_runner |
+| `84b6029` | #17 | fix: change RPCArg Type::OBJ to STR_HEX for verifyaxisproof proof param |
+| `a54ed68` | #13 | feat: node discovery and bootstrap |
+| `ad6d062` | #11 | feat: SLASH conditions for TeslaChain AXIS violations |
+| `d90dc69` | #7 | feat: SPV prove system for TeslaChain AXIS blocks |
+| `f86e6b7` | #9 | docs: P2P networking design for TeslaChain 3-6-9 |
+| `f946875` | #6 | docs: TLA+ formal specification for AXIS skip-chain consensus |
 
 ---
 
