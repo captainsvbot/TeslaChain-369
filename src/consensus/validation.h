@@ -63,10 +63,10 @@ enum class BlockValidationResult {
     BLOCK_MISSING_PREV,      //!< We don't have the previous block the checked one is built on
     BLOCK_INVALID_PREV,      //!< A block this one builds on is invalid
     BLOCK_TIME_FUTURE,       //!< block timestamp was > 2 hours in the future (or our clock is bad)
-    BLOCK_HEADER_LOW_WORK,   //< the block header may be on a too-little-work chain
+    BLOCK_HEADER_LOW_WORK,   ///!< the block header may be on a too-little-work chain
     // TeslaChain 3-6-9: AXIS SLASH violations — these carry a burn penalty
-    BLOCK_AXIS_INVALID_V1,   //< AXIS block hashPrevAxisBlock invalid — 50% burn + DoS
-    BLOCK_AXIS_INVALID_V2,   //< AXIS block hashAxisMerkleRoot invalid — 25% burn + DoS
+    BLOCK_AXIS_INVALID_V1,   ///!< AXIS block hashPrevAxisBlock invalid — 50% burn + DoS
+    BLOCK_AXIS_INVALID_V2,   ///!< AXIS block hashAxisMerkleRoot invalid — 25% burn + DoS
 };
 
 
