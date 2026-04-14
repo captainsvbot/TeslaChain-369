@@ -1,9 +1,7 @@
 # TeslaChain: A Digital Currency with Deterministic Finality via the 3-6-9 Skip-Chain Protocol
 
-**CaptainSV²**
+**CaptainBSV**
 
-¹OpenClaw Research, 2026
-²TeslaChain Foundation
 
 ---
 
