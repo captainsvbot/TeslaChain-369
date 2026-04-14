@@ -338,7 +338,6 @@ cmake -B build && cmake --build build --target bitcoind -j4
 - **DNS seeds for mainnet** — Need real domains for mainnet bootstrap
 - **SPV merkle proofs for LINK chain** — Currently SPV proofs cover AXIS blocks only
 - **Compact block support (BIP 152)** — For AXIS blocks over P2P
-- **Lightning Network** — Future work
 
 ---
 
