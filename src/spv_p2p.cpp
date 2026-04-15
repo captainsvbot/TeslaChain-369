@@ -4,7 +4,6 @@
 
 #include <spv_p2p.h>
 #include <logging.h>
-#include <net_processing.h>
 #include <util/strencodings.h>
 
 #include <algorithm>

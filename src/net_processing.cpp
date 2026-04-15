@@ -62,7 +62,6 @@
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/trace.h>
-#include <spv_p2p.h>
 #include <validation.h>
 
 #include <algorithm>
