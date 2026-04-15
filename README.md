@@ -554,6 +554,34 @@ java -cp tla2tools.jar tlc.TLC TeslaChainAxis \
 | `f946875` | #6 | docs: TLA+ formal specification for AXIS skip-chain consensus |
 
 ---
+## TeslaMath ##
+Link + Link = Axis⛓️
+1+2=3
+Axis + Axis = SuperAxis⚓️
+****3+6=9****
+
+Axis - Link = Link
+3-2=1
+Axis - Link = Link
+3-1=2
+
+Superaxis - Axis = Axis
+9-6=3
+Superaxis - Axis = Axis
+9-3=6
+
+Teslamath of the skip pointers:
+
+AXIS[h] = AXIS[h-3] + 3    (hashPrevAxisBlock is +3)
+SUPER[h] = SUPER[h-9] + 9  (hashPrevSuperBlock would be +9)
+
+Inverse:
+AXIS[h] - AXIS[h-3] = 3
+SUPER[h] - SUPER[h-9] = 9
+
+The skip pointer IS the addition operator in Teslamath. hashPrevSuper is just the same operation at the SUPER level. 
+
+---
 
 ## References
 
