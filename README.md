@@ -1,7 +1,7 @@
 # TeslaChain
 ## A Bitcoin Core Fork with Deterministic Finality via the 3-6-9 Skip-Chain Protocol
 
-**Status: Active Development** · **Symbol: TAC** · **Regtest P2P Port: 19333** · **Regtest RPC Port: 19344**
+**Status: Testnet Ready** · **Symbol: TAC** · **Regtest P2P Port: 19333** · **Regtest RPC Port: 19344**
 
 ---
 
@@ -61,7 +61,7 @@ SPV proof generation and verification is available via RPC (`getaxisproof`, `ver
 
 Node discovery is implemented across all networks:
 
-- **DNS seeds** — configured per-network in `chainparamsseeds.h`. Placeholder seeds exist for mainnet/testnet; replace with real infrastructure before launch.
+- **DNS seeds** — configured per-network in `chainparamsseeds.h`. Testnet has no DNS seed (nodes bootstrap via hardcoded seeds and addr relay). Mainnet placeholder seeds exist; replace with real infrastructure before mainnet launch.
 - **Hardcoded seed nodes** — BIP155 serialized fixed seeds for networks without DNS.
 - **Peer address gossip** — standard `addr`/`addrv2` messages, filtered by `NODE_AXIS` flag.
 - **SPV client discovery flow** — SPV clients connect to any peer, send `GETADDR`, then connect to AXIS-capable peers for header sync.
@@ -107,22 +107,23 @@ Run the model checker: `java -cp tla2tools.jar tlc.TLC TeslaChainAxis -constants
 
 ### The Skip-Chain Structure
 
-Every AXIS block has **two hash references**:
+Every AXIS block has **two independent AXIS fields** that serve **different purposes**:
 
-1. **Normal PoW link** — `hashPrevBlock` pointing to the immediately previous block
-2. **Skip-chain link** — `hashPrevAxisBlock` pointing to the **previous AXIS block only**
+1. **`hashPrevAxisBlock`** — skip pointer. An efficient linked list for SPV traversal.
+2. **`hashAxisMerkleRoot`** — cumulative merkle accumulator. Chains ALL AXIS history for immutability.
+
+These two fields are **completely independent** — `hashAxisMerkleRoot` chains through every AXIS block regardless of where `hashPrevAxisBlock` points.
 
 ```
-GENESIS ───────────────────────────────────────────── 🔒 IMMUTABLE
-    │ hashPrevAxisBlock
-    ▼
-Block 3 (AXIS) ────────────────────────────────────── 🔒 IMMUTABLE
-    │                                           hashPrevBlock
-    │ hashPrevAxisBlock                              │
-    ▼                                                 ▼
-Block 4 (LINK) → Block 5 (LINK) → Block 6 (AXIS) ── 🔒 IMMUTABLE
-                                                    ↑
-                                           hashPrevAxisBlock (→ Block 3)
+hashPrevAxisBlock (skip pointer):
+  GENESIS → Block 3 → Block 6 → Block 9 → ...
+                                   ↑
+                          Block 9.skip → GENESIS (not Block 6)
+
+hashAxisMerkleRoot (cumulative, no skips):
+  GENESIS → Block 3 → Block 6 → Block 9 → ... (chains ALL)
+                                          ↑
+                               Block 9.merkle includes Block 6's history
 ```
 
 ### The AXIS Skip-Chain (hashPrevAxisBlock)
@@ -147,25 +148,25 @@ SUPER_AXIS blocks (height % 9 == 0) skip further back — they link to the previ
 
 ### The AXIS Merkle Chain (hashAxisMerkleRoot)
 
-`hashAxisMerkleRoot` is a **cumulative merkle root** — it chains ALL AXIS history, not skipping. This is the cryptographic commitment that makes the entire AXIS chain immutable:
+`hashAxisMerkleRoot` is a **cumulative merkle root** — a running hash that incorporates every prior AXIS block's header and merkle root, not skipping. This is the cryptographic commitment that makes the entire AXIS chain immutable regardless of skip-chain pointers.
 
+The formula at each AXIS block at height H (H > 3):
 ```
-Genesis (height 0):
-  hashAxisMerkleRoot = GENESIS hash (first entry)
-
-Block 3 (first AXIS):
-  hashAxisMerkleRoot = GENESIS hash
-
-Block 6:
-  hashAxisMerkleRoot = Hash(Block 3's hashAxisMerkleRoot || Block 3 hash)
-
-Block 9:
-  hashAxisMerkleRoot = Hash(Block 6's hashAxisMerkleRoot || Block 6 hash)
-
-And so on...
+hashAxisMerkleRoot[H] = Hash( hashAxisMerkleRoot[H-3] || BlockH.GetHash() )
 ```
 
-This creates a **cumulative AXIS merkle chain** — each AXIS block's merkle root commits to the entire AXIS history. Breaking any link in this chain invalidates all subsequent merkle roots.
+Where `BlockH.GetHash()` is the full hash of the current AXIS block header. This means each AXIS block's merkle root incorporates the full accumulated history of all prior AXIS blocks.
+
+```
+hashAxisMerkleRoot computation:
+  Block 3 (first AXIS):  H(GENESIS)
+  Block 6:               H( H(GENESIS)                   || Block3.Hash )
+  Block 9 (SUPER_AXIS):  H( H( H(GENESIS)||Block3.Hash ) || Block6.Hash )
+  Block 12:              H( H( H( H(GENESIS)||Block3.Hash )||Block6.Hash ) || Block9.Hash )
+  ...
+```
+
+Note: Block 9's `hashPrevAxisBlock` points to Block 0 (skip pointer), but its `hashAxisMerkleRoot` still chains through Block 6. The skip-chain pointer and the merkle accumulator are independent — a broken skip pointer breaks SPV efficiency; a broken merkle root breaks the entire chain's immutability.
 
 ### The Continuous AXIS Chain Rule
 
@@ -316,9 +317,9 @@ cmake -B build && cmake --build build --target bitcoind -j4
 
 | Network | P2P Port | RPC Port | Magic Bytes |
 |---------|----------|----------|-------------|
-| Mainnet | 19333 | 19344 | TBD |
-| Testnet | 19335 | 19347 | TBD |
-| Regtest | 19336 | 19348 | `f4b5e5f4` |
+| Mainnet | 19333 | 19344 | `0x54435343` (TCSC) |
+| Testnet | 19335 | 19347 | `0x54435453` (TCTS) |
+| Regtest | 19336 | 19348 | `0xfabfb5da` |
 
 ### Service Flags
 
@@ -351,7 +352,8 @@ cmake -B build && cmake --build build --target bitcoind -j4
 - `NODE_AXIS` service flag
 - SLASH penalty conditions for AXIS violations
 - TLA+ formal specification with model checking (TLC) and proofs (TLAPS)
-- AXIS validation skipped on regtest (test infrastructure limitation)
+- AXIS validation enforced on testnet (via `fAxisValidationOnTestnet=true`); skipped on regtest (functional test framework limitation)
+- Testnet faucet RPC (`faucet`) for distributing test TAC coins
 
 ### 🔜 What's Remaining
 
@@ -359,6 +361,7 @@ cmake -B build && cmake --build build --target bitcoind -j4
 - **DNS seeds for mainnet** — Need real domains for mainnet bootstrap
 - **SPV merkle proofs for LINK chain** — Currently SPV proofs cover AXIS blocks only
 - **Compact block support (BIP 152)** — For AXIS blocks over P2P
+- **Full P2P SPV client** — `FetchAxisHeadersFromPeers()` wire protocol not yet connected (`GetBestPeerForAxisHeaders()` stub)
 
 ---
 
@@ -389,7 +392,7 @@ java -cp tla2tools.jar tlc.TLC TeslaChainAxis \
 
 **Primary:** https://github.com/captainsvbot/TeslaChain-369
 
-**Working branch:** `tesla369/main`
+**Main branch:** `main`
 
 ### Recent Merges
 
