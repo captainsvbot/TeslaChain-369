@@ -27,10 +27,10 @@ static const DNSSeed mainnetDNSSeeds[] = {
     // Example: {"seed.teslachain.invalid.", false},
 };
 
-/** Testnet DNS seeds (placeholder — no real TeslaChain DNS seeds yet) */
+/** Testnet DNS seeds — no DNS seed infrastructure yet */
 static const DNSSeed testnetDNSSeeds[] = {
-    // Placeholder: replace with real TeslaChain testnet DNS seeds when available
-    // Example: {"seed.testnet.teslachain.invalid.", false},
+    // No DNS seeds for testnet — nodes bootstrap via hardcoded seeds and addr relay
+    {nullptr, false},
 };
 
 /** Testnet4 DNS seeds (placeholder) */
