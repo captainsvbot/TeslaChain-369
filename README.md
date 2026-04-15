@@ -214,6 +214,22 @@ SUPER_AXIS blocks link to the previous SUPER_AXIS block (nHeight - 9), not the i
 **Conclusion by induction:**
 ALL AXIS blocks (3, 6, 9, 12, 15, 18, 21...) — both regular and SUPER_AXIS — are immutable without rewriting GENESIS.
 
+Note: Regular AXIS blocks can reference SUPER_AXIS blocks via `hashPrevAxisBlock` (e.g. Block 12 links to Block 9). Since both block types are independently proven immutable through their respective chains, cross-type references preserve the immutability guarantee.
+
+---
+
+### How It Works (Non-Technical)
+
+TeslaChain has three block types: LINK, AXIS, and SUPER_AXIS. LINK blocks are normal Bitcoin-style blocks — fast and simple. AXIS and SUPER_AXIS blocks are special checkpoints that lock the chain's history permanently.
+
+**Why two skip sizes?** TeslaChain uses two skip distances — 3 blocks and 9 blocks — because different nodes need different things. AXIS blocks (every 3rd block) are frequent checkpoints that regular applications can rely on. SUPER_AXIS blocks (every 9th block) are farther checkpoints that form a parallel "super chain" for nodes that need longer-range security anchors. Both chains are valid simultaneously.
+
+**How the two fields work together:** Every AXIS block has two numbers baked into it. The first number (`hashPrevAxisBlock`) is a shortcut — it tells you which AXIS block came before it, jumping over the LINK blocks in between. This makes checking the chain fast. The second number (`hashAxisMerkleRoot`) is a fingerprint of the entire checkpoint history — it accumulates the fingerprints of every prior AXIS block, so you can't change any checkpoint without changing every subsequent one.
+
+**Why both matter:** If someone tried to fake a checkpoint, the shortcut number would point to a block that doesn't exist. And even if they somehow managed that, the fingerprint wouldn't match — because it includes all the honest checkpoints' fingerprints. You can't forge the fingerprint without knowing every prior block's data.
+
+**The result:** AXIS and SUPER_AXIS checkpoints achieve what Bitcoin can only approximate probabilistically — deterministic finality. After a few AXIS blocks confirm a transaction, it's mathematically permanent without needing to wait for miners to keep confirming it.
+
 ∎
 
 ---
