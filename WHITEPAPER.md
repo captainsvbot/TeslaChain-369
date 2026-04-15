@@ -1,7 +1,8 @@
+# Whitepaper
+
 # TeslaChain: A Digital Currency with Deterministic Finality via the 3-6-9 Skip-Chain Protocol
 
 **CaptainBSV**
-
 
 ---
 
@@ -41,7 +42,7 @@ The solution we propose begins with a timestamp server. A timestamp server works
 
 In Bitcoin, each block's header contains the hash of the previous block, forming a chain. Modifying a block in the past would require redoing all subsequent blocks' work, creating a computational burden that secures the chain.
 
-TeslaChain extends this model by designating certain blocks (AXIS blocks) as forming an immutable sub-chain anchored to the GENESIS block. This creates a mathematical guarantee that AXIS blocks cannot be modified without rewriting the entire chain back to GENESIS.
+TeslaChain extends this model by designating certain blocks (AXIS and SUPER_AXIS blocks) as forming immutable sub-chains anchored to the GENESIS block. This creates a mathematical guarantee that AXIS and SUPER_AXIS blocks cannot be modified without rewriting the entire chain back to GENESIS.
 
 ---
 
@@ -51,7 +52,17 @@ The proof-of-work mechanism used by Bitcoin and TeslaChain is essentially one-CP
 
 The proof-of-work involves scanning for a value that when hashed (e.g., with SHA-256) produces a result with a certain number of leading zero bits. The required work is exponential in the number of zero bits required.
 
-For TeslaChain, proof-of-work secures the LINK blocks (1, 2, 4, 5, 7, 8...) exactly as in Bitcoin. For AXIS blocks (3, 6, 9, 12...), proof-of-work is supplemented by the mathematical structure of the skip-chain, creating deterministic finality.
+For TeslaChain, proof-of-work secures the LINK blocks (1, 2, 4, 5, 7, 8...) exactly as in Bitcoin. For AXIS blocks (3, 6, 12, 15, 21...) and SUPER_AXIS blocks (9, 18, 27, 36...), proof-of-work is supplemented by the mathematical structure of the skip-chain and cumulative merkle, creating deterministic finality.
+
+TeslaChain additionally introduces **α multipliers** that weight consensus based on block type:
+
+| Block Type | Condition | α Multiplier |
+|------------|-----------|--------------|
+| LINK | h % 3 != 0 | α = 1 |
+| AXIS | h % 3 == 0, h % 9 != 0 | α = 3 |
+| SUPER_AXIS | h % 9 == 0 | α = 9 |
+
+An honest TeslaChain chain accumulates consensus weight approximately **2.33× faster** than a flat linear chain of equal PoW, because AXIS and SUPER_AXIS blocks contribute 3× and 9× weight respectively.
 
 ---
 
@@ -156,7 +167,7 @@ Nodes always consider the longest chain to be the correct one and will keep work
 
 ### 6.1 Overview
 
-The Triadic Consensus Protocol introduces a secondary block classification. Every third block (height % 3 == 0) is designated as an **AXIS block**. AXIS blocks form an immutable sub-chain anchored to the GENESIS block.
+The Triadic Consensus Protocol introduces a secondary block classification. Every third block (height % 3 == 0) is designated as an **AXIS block**; every ninth block (height % 9 == 0) is designated as a **SUPER_AXIS block**. AXIS and SUPER_AXIS blocks form independent immutable sub-chains anchored to the GENESIS block.
 
 ### 6.2 Block Types
 
@@ -164,39 +175,63 @@ The Triadic Consensus Protocol introduces a secondary block classification. Ever
 |------|---------|-------------|-------------|
 | GENESIS | 0 | Protocol-defined root, immutable | 80 bytes |
 | LINK | 1, 2, 4, 5, 7, 8... | Standard proof-of-work blocks | 80 bytes |
-| AXIS | 3, 6, 12, 15, 18, 21... | Immutable by construction | **144 bytes** |
-| SUPER AXIS | 9, 18, 27, 36... | AXIS blocks at heights divisible by 9 | **144 bytes** |
+| AXIS | 3, 6, 12, 15, 21, 24... | Immutable by construction. Height % 3 == 0, not divisible by 9 | **144 bytes** |
+| SUPER_AXIS | 9, 18, 27, 36... | Stronger checkpoints. Height % 9 == 0 | **144 bytes** |
 
-AXIS block headers extend Bitcoin's 80-byte block header with **64 additional bytes** containing two AXIS-specific fields:
+AXIS and SUPER_AXIS block headers extend Bitcoin's 80-byte block header with **64 additional bytes** containing two AXIS-specific fields:
 
-- **`hashPrevAxisBlock`** (32 bytes): A pointer to the previous AXIS block in the skip-chain, forming a transitive integrity chain from each AXIS block back to GENESIS. For the first AXIS block (height 3), this field is zero (anchored directly to GENESIS).
-- **`hashAxisMerkleRoot`** (32 bytes): A cumulative merkle root computed over all AXIS blocks from GENESIS to the current AXIS block, in skip-chain order. This provides a verifiable commitment to the entire AXIS history without requiring the full LINK chain.
+- **`hashPrevAxisBlock`** (32 bytes): A skip pointer to the previous AXIS-family block. For regular AXIS blocks (height % 3 == 0, not % 9), this points to height H−3. For SUPER_AXIS blocks (height % 9 == 0), this points to height H−9. This forms an efficient linked list for SPV traversal.
+- **`hashAxisMerkleRoot`** (32 bytes): A cumulative merkle root. For AXIS blocks, this chains only through prior AXIS blocks (excluding SUPER_AXIS). For SUPER_AXIS blocks, this chains only through prior SUPER_AXIS blocks (excluding AXIS). This separation is deliberate — each chain is independently verifiable without cross-contamination.
 
 LINK blocks (non-AXIS heights) carry zero values for both `hashPrevAxisBlock` and `hashAxisMerkleRoot` — these fields must be null for non-AXIS blocks, enforced by DoS scoring on P2P messages.
 
-### 6.3 The Skip-Chain Structure
+### 6.3 The Unified Chain
 
-AXIS blocks reference not only their immediate predecessor, but also form a chain among themselves:
+All blocks — LINK, AXIS, and SUPER_AXIS — form a **single unified chain** via `hashPrevBlock`. The 3-6-9 pattern is a checkpointing overlay, not a replacement of Bitcoin's linear consensus:
 
 ```
-GENESIS → Block 1 → Block 2 → Block 3 → Block 4 → Block 5 → Block 6 → ...
-                           ↑                               ↑
-                           └─────── Skip-Chain ──────────────┘
+hashPrevBlock (UNIFIED LINEAR CHAIN):
+GENESIS → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → ...
+          G    L    L    A    L    L    A    L    L    S    L    L    A    ...
 ```
 
-This creates a transitive commitment: Block 6's skip-chain commitment references Block 3, which references GENESIS.
+### 6.4 The Skip-Chain Overlay
 
-### 6.4 Mathematical Immutability
+On top of the unified chain, `hashPrevAxisBlock` forms a skip pointer overlay:
 
-**Theorem**: Any AXIS block at height *H* cannot be modified without modifying all AXIS blocks from height 3 to height *H*, including GENESIS.
+```
+AXIS skip pointer:      3 → 6 → 9 → 12 → 15 → 18 → 21 → 24 → ...  (crosses AXIS↔SUPER_AXIS)
+SUPER_AXIS skip ptr:        9 → 18 → 27 → 36 → ...
 
-**Proof**: By induction on the AXIS block height.
+AXIS merkle:           3 → 6 → 12 → 15 → 21 → 24 → 30 → 33 → ...  (AXIS blocks only)
+SUPER_AXIS merkle:          9 → 18 → 27 → 36 → 45 → ...          (SUPER_AXIS blocks only)
+```
+
+The skip pointer (`hashPrevAxisBlock`) **crosses** between AXIS and SUPER_AXIS types. For example, AXIS[12] points to Block 9 (a SUPER_AXIS block). This enables efficient SPV traversal.
+
+The cumulative merkle (`hashAxisMerkleRoot`) is **intra-chain only** — AXIS blocks chain only through AXIS blocks; SUPER_AXIS blocks chain only through SUPER_AXIS blocks. This independence means that rewriting an AXIS block does not cascade to break the SUPER_AXIS merkle chain, and vice versa.
+
+### 6.5 Mathematical Immutability
+
+**Theorem (AXIS Chain)**: Any AXIS block at height H cannot be modified without modifying all AXIS blocks from height 3 to H, including GENESIS.
+
+**Theorem (SUPER_AXIS Chain)**: Any SUPER_AXIS block at height H cannot be modified without modifying all SUPER_AXIS blocks from height 9 to H, including GENESIS.
+
+**Proof (AXIS Chain)**: By induction on the AXIS block height.
 
 *Base case (H = 3)*: Block 3's skip-chain references GENESIS. Since GENESIS is immutable by protocol definition, Block 3 is immutable.
 
-*Inductive step*: Assume Block *k* (k > 3, k % 3 == 0) is immutable. Block *k+3* references Block *k* via skip-chain. Any modification to Block *k+3* requires modification to Block *k*, contradicting the induction hypothesis. Therefore, Block *k+3* is immutable.
+*Inductive step*: Assume Block K (K > 3, K % 3 == 0, K % 9 != 0) is immutable. Block K+3 references Block K via skip-chain. Any modification to Block K+3 requires modification to Block K, contradicting the induction hypothesis. Therefore, Block K+3 is immutable.
 
-By induction, all AXIS blocks are immutable. ∎
+By induction, all regular AXIS blocks are immutable. ∎
+
+**Proof (SUPER_AXIS Chain)**: By induction on the SUPER_AXIS block height.
+
+*Base case (H = 9)*: Block 9's skip-chain references GENESIS. Since GENESIS is immutable, Block 9 is immutable.
+
+*Inductive step*: Assume Block K (K > 9, K % 9 == 0) is immutable. Block K+9 references Block K via skip-chain. Any modification to Block K+9 requires modification to Block K, contradicting the induction hypothesis. Therefore, Block K+9 is immutable.
+
+By induction, all SUPER_AXIS blocks are immutable. ∎
 
 ---
 
@@ -205,6 +240,8 @@ By induction, all AXIS blocks are immutable. ∎
 By convention, the first transaction in a block is a special transaction that starts a new coin owned by the creator of the block. This adds an incentive for nodes to support the network and provides a way to initially distribute coins into circulation.
 
 TeslaChain follows this model for LINK blocks. For AXIS blocks, the skip-chain structure creates an additional security incentive: including an invalid AXIS reference would invalidate the block, wasting the proof-of-work expenditure.
+
+Additionally, TeslaChain's SLASH penalty mechanism burns a portion of the block reward for violations, creating a direct economic cost for protocol non-compliance.
 
 ---
 
@@ -241,15 +278,13 @@ TeslaChain SPV verification requires validating three independent, interlocking 
 
 2. **Proof-of-Work Verification**: Verify that `header.GetHash() < header.nBits` — the block header's hash satisfies the difficulty target encoded in `nBits`. This proves the block was genuinely produced by computational work.
 
-3. **hashPrevAxisBlock Chain Verification**: Starting from the given AXIS header, traverse the skip-chain by following `hashPrevAxisBlock` links backward. For each AXIS header in the chain, verify its PoW and `hashAxisMerkleRoot` consistency. Terminate when reaching AXIS block #3, whose `hashPrevAxisBlock` must equal the GENESIS hash (zero). This transitive chain ensures the AXIS block is anchored to GENESIS and has not been tampered with.
+3. **hashPrevAxisBlock Chain Verification**: Starting from the given AXIS header, traverse the skip-chain by following `hashPrevAxisBlock` links backward. For each AXIS header in the chain, verify its PoW and `hashAxisMerkleRoot` consistency. Terminate when reaching the first AXIS block, whose `hashPrevAxisBlock` must equal the GENESIS hash (zero). This transitive chain ensures the AXIS block is anchored to GENESIS and has not been tampered with.
 
 These three checks are **mutually reinforcing**: the merkle proof proves transaction inclusion, the PoW proves the header is authentic Nakamoto consensus work, and the skip-chain proves the block cannot be reorganized without rewriting GENESIS. A fraudulent header would fail at least one of these checks.
 
 ### 9.3 SPV over P2P
 
 The SPV client implementation in `spv_p2p.cpp` provides `AxisHeaderCache` for storing and looking up AXIS headers by height or hash, and `SPVP2PClient` for managing P2P connections and fetching headers via `GETAXISHEADERS` messages. SPV clients connect to AXIS-capable peers (those advertising `NODE_AXIS`), request AXIS headers using LINK-chain locators, and validate received headers against the three-part verification scheme before storing them in the local cache.
-
-For TeslaChain, this extends naturally to AXIS blocks: once a transaction is confirmed in an AXIS block, it is mathematically guaranteed to be final if the AXIS proof is verified.
 
 ---
 
@@ -271,7 +306,7 @@ We consider the scenario of an attacker trying to generate an alternate chain fa
 
 The race between the honest chain and an attacker chain can be characterized as a Binomial Random Walk. The event that the honest chain wins is the probability that the honest chain eventually overtakes the attacker.
 
-For LINK blocks, TeslaChain maintains Bitcoin's security model. For AXIS blocks, the skip-chain creates an additional constraint: an attacker must also rewrite the entire AXIS chain, making the attack exponentially more difficult.
+For LINK blocks, TeslaChain maintains Bitcoin's security model. For AXIS and SUPER_AXIS blocks, the skip-chain creates an additional constraint: an attacker must also rewrite the entire respective AXIS chain, making the attack exponentially more difficult. The α multiplier system amplifies this — an attacker who diverges from an AXIS or SUPER_AXIS checkpoint loses the 3× or 9× weight bonus until they re-establish a valid checkpoint on their secret chain.
 
 The probability of an attacker catching up diminishes exponentially as subsequent blocks are added. For AXIS blocks specifically, catching up is not merely difficult—it is mathematically impossible without rewriting GENESIS.
 
@@ -283,23 +318,23 @@ The Triadic Consensus Protocol enforces AXIS structural integrity through a pena
 
 ### 13.1 SLASH V1 — hashPrevAxisBlock Violations
 
-**Trigger**: An AXIS block's `hashPrevAxisBlock` field does not correctly reference the preceding AXIS block in the skip-chain.
+**Trigger**: An AXIS or SUPER_AXIS block's `hashPrevAxisBlock` field does not correctly reference the preceding block in the skip-chain. For AXIS blocks, this means height H−3. For SUPER_AXIS blocks, this means height H−9.
 
 **Penalty**: 50% burn of the block reward.
 
-**Detection**: This violation is detected during both P2P header reception (via `AXISHEADERS` or `headers` messages) and during full block validation. When receiving AXIS headers from peers, the node verifies that `hashPrevAxisBlock` points to the correct prior AXIS block (height H−3). A mismatch results in DoS scoring (+10) and rejection of the invalid header. At the consensus level, blocks confirmed with invalid `hashPrevAxisBlock` are subject to SLASH V1 enforcement.
+**Detection**: This violation is detected during both P2P header reception (via `AXISHEADERS` or `headers` messages) and during full block validation. When receiving AXIS headers from peers, the node verifies that `hashPrevAxisBlock` points to the correct prior block. A mismatch results in DoS scoring (+10) and rejection of the invalid header.
 
-**Rationale**: The `hashPrevAxisBlock` field is the skip-chain's integrity link. If it is wrong, the AXIS block is not properly anchored to its predecessor, breaking the transitive immutability chain. Burning 50% of the reward makes it economically catastrophic to mine atop an invalid AXIS block.
+**Rationale**: The `hashPrevAxisBlock` field is the skip-chain's integrity link. If it is wrong, the AXIS/SUPER_AXIS block is not properly anchored to its predecessor, breaking the transitive immutability chain. Burning 50% of the reward makes it economically catastrophic to mine atop an invalid checkpoint.
 
 ### 13.2 SLASH V2 — hashAxisMerkleRoot Violations
 
-**Trigger**: An AXIS block's `hashAxisMerkleRoot` does not match the correctly computed cumulative merkle root of all AXIS blocks from GENESIS to this block.
+**Trigger**: An AXIS or SUPER_AXIS block's `hashAxisMerkleRoot` does not match the correctly computed cumulative merkle root of all blocks in its respective chain (AXIS merkle for AXIS blocks; SUPER_AXIS merkle for SUPER_AXIS blocks).
 
 **Penalty**: 25% burn of the block reward.
 
-**Detection**: During full block validation, the node recomputes the AXIS merkle chain up to the current height and compares the result against `hashAxisMerkleRoot`. A mismatch triggers SLASH V2. At the P2P layer, headers with null `hashAxisMerkleRoot` are rejected with DoS scoring (+10).
+**Detection**: During full block validation, the node recomputes the respective merkle chain up to the current height and compares the result against `hashAxisMerkleRoot`. A mismatch triggers SLASH V2. At the P2P layer, headers with null `hashAxisMerkleRoot` are rejected with DoS scoring (+10).
 
-**Rationale**: The `hashAxisMerkleRoot` commits to the entire AXIS history. An incorrect value means the block's commitment to prior AXIS blocks is invalid, undermining the skip-chain's cumulative integrity. The 25% burn is proportional to the severity — the skip-chain link remains intact, but the merkle commitment is broken.
+**Rationale**: The `hashAxisMerkleRoot` commits to the entire checkpoint chain history. An incorrect value means the block's commitment to prior checkpoints is invalid. The 25% burn is proportional to the severity.
 
 ### 13.3 Penalty Enforcement Summary
 
@@ -322,37 +357,34 @@ The formal specification is located at `docs/formal/TeslaChainAxis.tla`. It mode
 
 - `GenesisHash`: The immutable GENESIS block identifier.
 - `AXIS[i]`: The AXIS block at skip-chain position `i` (height `3 × (i+1)`).
-- `Changed(h)`: A predicate indicating whether AXIS block at height `h` has been modified.
+- `SUPER_AXIS[i]`: The SUPER_AXIS block at skip-chain position `i` (height `9 × (i+1)`).
+- `Changed(h)`: A predicate indicating whether an AXIS/SUPER_AXIS block at height `h` has been modified.
 
-The specification defines the AXIS block structure with fields for height, hash, `hashPrevBlock`, `hashPrevAxisBlock`, and `hashAxisMerkleRoot`, mirroring the 144-byte header layout used in the implementation.
+The specification defines block structures with fields for height, hash, `hashPrevBlock`, `hashPrevAxisBlock`, and `hashAxisMerkleRoot`, mirroring the 144-byte header layout used in the implementation.
 
 ### 14.2 Four Invariants
 
 The TLA+ specification establishes four critical invariants that hold for all reachable states:
 
-1. **Inv1_AXIS_Contiguity**: Every AXIS block `AXIS_i` references `AXIS_{i-1}` via `hashPrevAxisBlock`. This guarantees the skip-chain forms a proper linked list back to GENESIS — no AXIS block can skip over its immediate predecessor.
+1. **Inv1_AXIS_Contiguity**: Every AXIS block at height h links via `hashPrevAxisBlock` to the previous AXIS-family block at height h−3 (or h−9 for SUPER_AXIS blocks). This guarantees the skip-chain forms a proper linked list back to GENESIS.
 
-2. **Inv2_GENESIS_Immutability**: The GENESIS block (height 0) is never modified. This is the foundational axiom from which all AXIS immutability is derived.
+2. **Inv2_GENESIS_Immutability**: The GENESIS block (height 0) is never modified. This is the foundational axiom from which all checkpoint immutability is derived.
 
-3. **Inv3_No_Skip_Violations**: AXIS blocks appear only at heights 3, 6, 9, 12... (multiples of 3). No AXIS block exists at a non-multiple-of-3 height, ensuring the skip-chain spacing is always consistent.
+3. **Inv3_No_Skip_Violations**: AXIS blocks appear only at heights 3, 6, 9, 12... (multiples of 3); SUPER_AXIS blocks appear only at heights 9, 18, 27... (multiples of 9). No checkpoint block exists at an invalid height.
 
-4. **Inv4_Chain_Finality**: Once an AXIS block is confirmed at sufficient depth, it cannot be modified without invalidating the entire AXIS chain back to GENESIS. This is a direct consequence of Inv1 and Inv2.
+4. **Inv4_Chain_Finality**: Once an AXIS or SUPER_AXIS block is confirmed at sufficient depth, it cannot be modified without invalidating the entire respective AXIS chain back to GENESIS.
 
 ### 14.3 AXIS_IMMUTABILITY_THEOREM
 
 The core theorem, proven in `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla`, states:
 
-```
-Changed(AXIS_H) => Changed(AXIS_{H-3})
-```
+**Theorem (AXIS Immutability)**: Modifying any AXIS block at height H requires modifying all AXIS blocks from height 3 to H, including GENESIS. Similarly for SUPER_AXIS blocks with height 9 as the base.
 
-**Theorem (AXIS Immutability)**: If an AXIS block at height H is modified, then the AXIS block at height H−3 must also be modified.
+**Proof strategy** (AXIS chain):
+- **Base case (H = 3)**: AXIS_3 references GENESIS via `hashPrevAxisBlock`. Since GENESIS is immutable (Inv2), AXIS_3 cannot change without also changing GENESIS.
+- **Inductive step**: Consider AXIS_{H+3}: its `hashPrevAxisBlock` points to AXIS_H. If AXIS_{H+3} changes, its `hashPrevAxisBlock` must change to remain consistent with the new AXIS_H hash. This means AXIS_H has changed. By the induction hypothesis, AXIS_{H-3} must also have changed, and so on back to AXIS_3 and GENESIS.
 
-**Proof strategy**:
-- **Base case (H = 3)**: AXIS_3 references GENESIS via `hashPrevAxisBlock`. Since GENESIS is immutable (Inv2), AXIS_3 cannot change without also changing GENESIS. Therefore `Changed(AXIS_3) => Changed(GENESIS)`.
-- **Inductive step**: Assume `Changed(AXIS_H) => Changed(AXIS_{H-3})` for all H up to some value. Consider AXIS_{H+3}: its `hashPrevAxisBlock` points to AXIS_H. If AXIS_{H+3} changes, its `hashPrevAxisBlock` must change to remain consistent with the new AXIS_H hash. But this means AXIS_H has changed — satisfying `Changed(AXIS_{H+3}) => Changed(AXIS_H)`. By the induction hypothesis, `Changed(AXIS_H) => Changed(AXIS_{H-3})`. Chaining these: `Changed(AXIS_{H+3}) => Changed(AXIS_H) => Changed(AXIS_{H-3})`.
-
-By induction, modifying any AXIS block propagates all the way back to AXIS_3, which requires modifying GENESIS. This makes the entire AXIS chain **as immutable as GENESIS itself**.
+By induction, modifying any AXIS block propagates all the way back to GENESIS. This makes the entire AXIS chain **as immutable as GENESIS itself**. The same logic applies independently to the SUPER_AXIS chain. ∎
 
 ### 14.4 Model Checking
 
@@ -362,15 +394,60 @@ Verification checklist and model configurations are available in `docs/formal/TL
 
 ---
 
-## 15. Conclusion
+## 15. AI-Era Security: Why TeslaChain Wins
+
+*"Over half of the planet's internet traffic is now made up of AI bots" — Kate Johnson, CEO of Lumen (Bloomberg, April 2026)*
+
+An emerging threat has materialized: AI agents operating autonomously at machine scale are generating the majority of internet traffic. This changes the threat model for blockchain consensus fundamentally.
+
+### 15.1 The AI Swarm Threat
+
+When AI bots make up the majority of internet traffic, they also make up the majority of compute, storage, and — critically — hash rate. A malicious actor with access to an AI swarm (through hacked cloud infrastructure, compromised IoT devices, or state-level resources) can:
+
+- **Amplify Sybil attacks** — unlimited identities generated cheaply, overwhelming peer discovery and eclipse attacks
+- **Execute cheap 51% attacks** — AI swarm hashrate redirected silently to reorganize vanilla chains
+- **Launch deep reorgs** — long-range attacks that rewrite history on chains without checkpoint mechanisms
+
+Bitcoin, BCH, and BSV have no structural defense against an AI-driven majority hashrate attack. Their longest-chain rule means the attacker wins if they outrun honest nodes. Probabilistic finality — "6 confirmations is usually enough" — is no longer meaningful when an AI swarm can sustain a secret reorg chain indefinitely.
+
+### 15.2 How TeslaChain Resists AI Swarm Attacks
+
+TeslaChain's AXIS checkpoints are not probabilistic. They are *mathematically final* — an AXIS block cannot be modified without modifying GENESIS, and GENESIS is immutable by protocol definition.
+
+- An AI swarm with 100× the honest hashrate still cannot rewrite an AXIS block
+- The attack is not a hashrate problem — it is a **cryptography problem**
+- You cannot solve your way out of a mathematical commitment with more hash
+- The AI swarm runs into GENESIS and stops
+
+**Comparison:**
+
+| Threat | Bitcoin/BCH/BSV | TeslaChain |
+|--------|-----------------|------------|
+| 51% AI swarm attack | Probabilistic — attacker wins if they outrun honest chain | Deterministic — AXIS checkpoints are immutably anchored to GENESIS |
+| Deep reorg (6+ blocks) | Possible with sufficient AI hashrate | Mathematically impossible for AXIS/SUPER_AXIS blocks |
+| AI-driven double-spend | Increasingly cheap as AI compute scales | SLASH burns 50% of attacker coinbase; two independent constraints (PoW + checkpointing) |
+| SPV fraud | Full node or trust | SPV proof verifies all three constraints independently |
+
+### 15.3 The Key Insight
+
+Bitcoin's security degrades as AI makes hashrate cheaper and more abundant. TeslaChain's security *improves* as checkpoints accumulate — the deeper the AXIS chain, the more GENESIS-bound each subsequent checkpoint becomes.
+
+
+For individual users, enterprises, and nation-states: probabilistic finality is a bet against an increasingly powerful AI adversary. Deterministic finality is a mathematical guarantee that holds regardless of how much hash the attacker controls.
+
+TeslaChain is not immune to every AI-era threat — key management, social engineering, and regulatory action remain individual responsibilities. But on the consensus layer, it is the first blockchain designed to win against an AI swarm.
+
+---
+
+## 16. Conclusion
 
 We have proposed a system for electronic transactions without relying on trust. We started with the framework of coins made from digital signatures, which provides strong ownership control but is incomplete without a way to prevent double-spending.
 
 To solve double-spending, we proposed a peer-to-peer network using proof-of-work. This network is robust in its simplicity: transactions are broadcast publicly, and nodes work on finding proof-of-work to extend the chain. The longest chain serves as proof of the most work and as evidence that it came from the largest pool of CPU power.
 
-We extended this model with the Triadic Consensus Protocol (3-6-9), which designates every third block as an AXIS block forming an immutable sub-chain. We proved mathematically that AXIS blocks cannot be reorganized without rewriting the GENESIS block—making AXIS-finalized transactions immutable by pure mathematics, not merely economically irrational to attack.
+We extended this model with the Triadic Consensus Protocol (3-6-9), which designates every third block as an AXIS block and every ninth block as a SUPER_AXIS block, each forming an independent immutable sub-chain. We proved mathematically that AXIS and SUPER_AXIS blocks cannot be reorganized without rewriting the GENESIS block—making checkpoint-finalized transactions immutable by pure mathematics, not merely economically irrational to attack.
 
-The system is secure as long as honest nodes collectively control more CPU power than any cooperating group of attacker nodes.
+In an era where AI swarms dominate the internet, TeslaChain's deterministic finality provides a structural advantage no vanilla blockchain can match (see Section 15). The system is secure as long as honest nodes collectively control more CPU power than any cooperating group of attacker nodes — and even then, AXIS checkpoints remain mathematically immutable.
 
 ---
 
@@ -390,9 +467,9 @@ The system is secure as long as honest nodes collectively control more CPU power
 
 ---
 
-**Acknowledgments**
+## Acknowledgments
 
-We thank Satoshi Nakamoto for inventing Bitcoin, the Bitcoin Core team for maintaining the reference implementation, and Dr. Craig Wright for demonstrating the potential of BSV.
+We thank Satoshi Nakamoto for inventing Bitcoin, the Bitcoin Core team for maintaining the reference implementation, and Dr. Craig Wright for championing Bitcoin's original large-block scaling vision — which demonstrated that on-chain scaling is the path Satoshi intended.
 
 ---
 
@@ -400,5 +477,7 @@ We thank Satoshi Nakamoto for inventing Bitcoin, the Bitcoin Core team for maint
 
 **Repository**: https://github.com/captainsvbot/TeslaChain-369
 
-This whitepaper is subject to review as it has not been audited and information may not be consistent with what teslachain offers.
-The Author reserves all rights to make changes as neccessary if information is not factual based on external review.
+**Status**: Testnet Ready · Symbol: TAC
+
+This whitepaper is subject to review as it has not been audited and information may not be consistent with what TeslaChain offers.
+The Author reserves all rights to make changes as necessary if information is not factual based on external review.
