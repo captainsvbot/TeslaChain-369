@@ -125,42 +125,63 @@ Block 4 (LINK) → Block 5 (LINK) → Block 6 (AXIS) ── 🔒 IMMUTABLE
                                            hashPrevAxisBlock (→ Block 3)
 ```
 
-### AXIS Merkle Root Computation
+### The AXIS Skip-Chain (hashPrevAxisBlock)
 
-For each AXIS block, `hashAxisMerkleRoot` chains the AXIS history:
+`hashPrevAxisBlock` is a **skip-chain pointer** — an efficient linked list for SPV clients. Each AXIS block points to the previous AXIS block:
 
 ```
-Genesis (height 0):
-  hashAxisMerkleRoot = GENESIS hash (first entry in AXIS merkle)
+GENESIS (height 0):
+  hashPrevAxisBlock = 0 (null)
 
 Block 3 (first AXIS):
   hashPrevAxisBlock = GENESIS hash
-  hashAxisMerkleRoot = GENESIS hash
 
 Block 6:
   hashPrevAxisBlock = Block 3 hash
+
+Block 9 (SUPER_AXIS):
+  hashPrevAxisBlock = Block 0 hash  ← skips to GENESIS chain
+```
+
+SUPER_AXIS blocks (height % 9 == 0) skip further back — they link to the previous SUPER_AXIS block (9 blocks), forming a parallel skip-chain: 0 → 9 → 18 → 27. Regular AXIS blocks (height % 3 == 0 but not % 9) link to the immediately prior AXIS block (3 blocks back).
+
+### The AXIS Merkle Chain (hashAxisMerkleRoot)
+
+`hashAxisMerkleRoot` is a **cumulative merkle root** — it chains ALL AXIS history, not skipping. This is the cryptographic commitment that makes the entire AXIS chain immutable:
+
+```
+Genesis (height 0):
+  hashAxisMerkleRoot = GENESIS hash (first entry)
+
+Block 3 (first AXIS):
+  hashAxisMerkleRoot = GENESIS hash
+
+Block 6:
   hashAxisMerkleRoot = Hash(Block 3's hashAxisMerkleRoot || Block 3 hash)
 
 Block 9:
-  hashPrevAxisBlock = Block 6 hash
   hashAxisMerkleRoot = Hash(Block 6's hashAxisMerkleRoot || Block 6 hash)
 
 And so on...
 ```
 
-This creates a **cumulative AXIS merkle chain** — each AXIS block includes all previous AXIS block hashes in its merkle root.
+This creates a **cumulative AXIS merkle chain** — each AXIS block's merkle root commits to the entire AXIS history. Breaking any link in this chain invalidates all subsequent merkle roots.
 
 ### The Continuous AXIS Chain Rule
 
-**CRITICAL:** The skip-chain is a **linked list**. Each AXIS block must reference the AXIS block immediately before it.
+**CRITICAL:** Both fields must be correct — they serve different purposes:
+
+- `hashPrevAxisBlock` forms a **skip-chain** for SPV efficiency (linked list, with SUPER_AXIS skipping 9 blocks)
+- `hashAxisMerkleRoot` forms a **cumulative merkle chain** for immutability (no skips, chains all AXIS blocks)
 
 ```
-Block 9's hashPrevAxisBlock MUST point to Block 6
-Block 6's hashPrevAxisBlock MUST point to Block 3
-Block 3's hashPrevAxisBlock MUST point to GENESIS
+hashPrevAxisBlock chain:     GENESIS → 3 → 6 → 9 → 12 → 15 → 18 → ...
+                            (skip: 9→0, 18→9, 27→18, etc. for SUPER_AXIS)
+
+hashAxisMerkleRoot chain:    GENESIS → 3 → 6 → 9 → 12 → 15 → 18 → ... (no skips)
 ```
 
-A broken link breaks everything after it. If any AXIS block is invalid or missing, ALL subsequent AXIS blocks become invalid.
+A broken skip-chain (`hashPrevAxisBlock`) breaks SPV proofs for all subsequent AXIS blocks. A broken merkle chain (`hashAxisMerkleRoot`) breaks the entire AXIS immutability guarantee — all subsequent AXIS blocks become invalid.
 
 ---
 

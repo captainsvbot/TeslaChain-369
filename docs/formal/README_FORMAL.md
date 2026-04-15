@@ -187,7 +187,7 @@ Add to `Next`:
 
 - **Bitcoin** — Nakamoto consensus (no skip-chains)
   - TLA+ spec: https://github.com/plor/tla-bitcoin
-  
+
 - **Ethereum 2.0** — Beacon chain finality gadget
   - TLA+ spec: https://github.com/ethereum/formal-verification
 
