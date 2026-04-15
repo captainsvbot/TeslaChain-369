@@ -579,7 +579,7 @@ Inverse:
 AXIS[h] - AXIS[h-3] = 3
 SUPER[h] - SUPER[h-9] = 9
 
-The skip pointer IS the addition operator in Teslamath. hashPrevSuper is just the same operation at the SUPER level. 
+*** The skip pointer IS the addition operator in Teslamath. hashPrevSuperBlock is just the same operation at the SUPER level. ***
 
 ---
 
