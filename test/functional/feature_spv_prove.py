@@ -69,6 +69,28 @@ class SPVProveTest(BitcoinTestFramework):
         """
         return self.nodes[node_index].get_deterministic_priv_key().address
 
+    def get_mature_coins(self, node, wallet, amount=1.0):
+        """Get mature coinbase funds for spending.
+
+        Coinbase outputs need 100 blocks to mature. We mine to the deterministic
+        coinbase address (which is pre-imported into the wallet) and wait for
+        maturity before returning spendable UTXOs.
+        """
+        mining_addr = self.get_testing_wallet_addr()
+
+        # Mine 101 blocks to make coinbase mature (coinbase matures after 100 blocks)
+        current_height = node.getblockcount()
+        blocks_needed = max(0, 101 - current_height)
+        if blocks_needed > 0:
+            self.generatetoaddress(node, blocks_needed, mining_addr, sync_fun=self.no_op)
+            self.sync_all()
+
+        # Now we should have mature coinbase
+        balance = wallet.getbalance()
+        assert float(balance) >= amount, f"Need {amount} BTC but only have {balance} BTC"
+
+        return wallet.listunspent()
+
     def setup_spv_chain(self):
         """Mine a chain with AXIS blocks and return the node."""
         node = self.nodes[0]
@@ -177,8 +199,11 @@ class SPVProveTest(BitcoinTestFramework):
         node = self.nodes[0]
         wallet = self.get_wallet(0)
 
-        # Use wallet's own address for mining so coinbase rewards are credited to wallet
-        mining_addr = wallet.getnewaddress()
+        # Get mature coinbase funds
+        self.get_mature_coins(node, wallet)
+
+        # Use deterministic coinbase address for mining (wallet already knows this key)
+        mining_addr = self.get_testing_wallet_addr()
 
         # Mine to height 6 to have AXIS blocks
         self.generatetoaddress(node, 6, mining_addr, sync_fun=self.no_op)
@@ -211,8 +236,11 @@ class SPVProveTest(BitcoinTestFramework):
         node = self.nodes[0]
         wallet = self.get_wallet(0)
 
-        # Use wallet's own address for mining so coinbase rewards are credited to wallet
-        mining_addr = wallet.getnewaddress()
+        # Get mature coinbase funds first
+        self.get_mature_coins(node, wallet)
+
+        # Use deterministic coinbase address for mining
+        mining_addr = self.get_testing_wallet_addr()
 
         self.generatetoaddress(node, 4, mining_addr, sync_fun=self.no_op)
         self.sync_mempools()
@@ -237,8 +265,11 @@ class SPVProveTest(BitcoinTestFramework):
         node = self.nodes[0]
         wallet = self.get_wallet(0)
 
-        # Use wallet's own address for mining so coinbase rewards are credited to wallet
-        mining_addr = wallet.getnewaddress()
+        # Get mature coinbase funds first
+        self.get_mature_coins(node, wallet)
+
+        # Use deterministic coinbase address for mining
+        mining_addr = self.get_testing_wallet_addr()
 
         self.generatetoaddress(node, 9, mining_addr, sync_fun=self.no_op)
         self.sync_mempools()
