@@ -176,10 +176,18 @@ Note: Block 9's `hashPrevAxisBlock` points to Block 0 (skip pointer), but its `h
 - `hashAxisMerkleRoot` forms a **cumulative merkle chain** for immutability (no skips, chains all AXIS blocks)
 
 ```
-hashPrevAxisBlock chain:     GENESIS → 3 → 6 → 9 → 12 → 15 → 18 → ...
-                            (skip: 9→0, 18→9, 27→18, etc. for SUPER_AXIS)
+hashPrevAxisBlock: skip pointer
+  Regular AXIS blocks (3, 6, 12, 15, 21...):   link to nHeight - 3
+  SUPER_AXIS blocks (9, 18, 27, 36...):          link to nHeight - 9
 
-hashAxisMerkleRoot chain:    GENESIS → 3 → 6 → 9 → 12 → 15 → 18 → ... (no skips)
+  Block 3 → GENESIS     Block 6 → Block 3     Block 9 → GENESIS
+  Block 12 → Block 9   Block 15 → Block 12   Block 18 → Block 9
+  ...
+
+hashAxisMerkleRoot: cumulative merkle (no skips, chains ALL AXIS)
+  Block 3 → GENESIS     Block 6 → Chain(3)     Block 9 → Chain(6)
+  Block 12 → Chain(9)   Block 15 → Chain(12)   Block 18 → Chain(15)
+  ...
 ```
 
 A broken skip-chain (`hashPrevAxisBlock`) breaks SPV proofs for all subsequent AXIS blocks. A broken merkle chain (`hashAxisMerkleRoot`) breaks the entire AXIS immutability guarantee — all subsequent AXIS blocks become invalid.
