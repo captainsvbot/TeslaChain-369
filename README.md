@@ -295,9 +295,9 @@ cmake -B build && cmake --build build --target bitcoind -j4
 
 | Network | P2P Port | RPC Port | Magic Bytes |
 |---------|----------|----------|-------------|
-| Mainnet | 19333 | 19344 | TBD |
-| Testnet | 19335 | 19347 | TBD |
-| Regtest | 19336 | 19348 | `f4b5e5f4` |
+| Mainnet | 19333 | 19344 | `0x54435343` |
+| Testnet | 19335 | 19347 | `0x54435453` |
+| Regtest | 19336 | 19348 | `0xfabfb5da` |
 
 ### Service Flags
 
