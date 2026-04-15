@@ -205,11 +205,14 @@ Any AXIS block at height H cannot be modified without modifying all AXIS blocks 
 **Base case (H = 3):**
 Block 3's `hashPrevAxisBlock` references GENESIS. GENESIS is immutable by protocol definition. Therefore Block 3 is immutable — any modification requires modifying GENESIS, which is impossible.
 
-**Inductive step:**
-Assume Block K (K > 3, K % 3 == 0) is immutable. Block K+3 references Block K via `hashPrevAxisBlock`. Any modification to Block K+3 requires the new Block K+3 to reference the (unchangeable) Block K. Since Block K is immutable, Block K+3 is also immutable.
+**Regular AXIS blocks (H % 9 != 0):**
+Assume Block K (K > 3, K % 3 == 0, K % 9 != 0) is immutable. Block K+3 references Block K via `hashPrevAxisBlock`. Any modification to Block K+3 requires the new Block K+3 to reference the (unchangeable) Block K. Since Block K is immutable, Block K+3 is also immutable.
+
+**SUPER_AXIS blocks (H % 9 == 0):**
+SUPER_AXIS blocks link to the previous SUPER_AXIS block (nHeight - 9), not the immediately prior AXIS block. Block 9 references GENESIS directly — GENESIS is immutable, so Block 9 is immutable. Block 18 references Block 9 via `hashPrevAxisBlock`; since Block 9 is immutable, Block 18 is also immutable. This extends inductively: Block K (K % 9 == 0, K > 9) references Block K-9, and if Block K-9 is immutable, Block K is immutable too.
 
 **Conclusion by induction:**
-ALL AXIS blocks (3, 6, 9, 12, 15, 18, 21...) are immutable without rewriting GENESIS.
+ALL AXIS blocks (3, 6, 9, 12, 15, 18, 21...) — both regular and SUPER_AXIS — are immutable without rewriting GENESIS.
 
 ∎
 
