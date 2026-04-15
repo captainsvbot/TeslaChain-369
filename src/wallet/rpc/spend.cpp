@@ -1794,4 +1794,69 @@ RPCMethod walletcreatefundedpsbt()
 },
     };
 }
+
+static RPCHelpMan faucet()
+{
+    return RPCHelpMan{
+        "faucet",
+        "Send test coins to a specified address from the wallet.\n"
+        "This RPC is intended for testnet bootstrapping — it dispenses TAC coins\n"
+        "from a pre-funded wallet so users don't need to mine.\n",
+        {
+            {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The teslachain address to send coins to."},
+            {"amount", RPCArg::Type::AMOUNT, RPCArg::Default{1}, "The amount in TAC to send. Default is 1 TAC."},
+        },
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
+            {
+                {RPCResult::Type::STR_HEX, "txid", "The transaction id."},
+                {RPCResult::Type::STR_AMOUNT, "amount", "The amount sent in " + CURRENCY_UNIT + "."},
+                {RPCResult::Type::STR, "address", "The destination address."},
+            }},
+        RPCExamples{
+            "\nSend 1 TAC to a test address\n"
+            + HelpExampleCli("faucet", "\"mxVEJC5DiHbXEy7av9eJTN桃cXy3Lyk8NH\" 1")
+            + "\nSend 0.5 TAC using named arguments\n"
+            + HelpExampleCli("-named faucet", "address=\"mxVEJC5DiHbXEy7av9eJTN桃cXy3Lyk8NH\" amount=0.5")
+        },
+        [](const RPCMethod&, const JSONRPCRequest& request) -> UniValue
+        {
+            std::shared_ptr<CWallet> const pwallet = GetWalletForJSONRPCRequest(request);
+            if (!pwallet) {
+                throw JSONRPCError(RPC_WALLET_NOT_FOUND, "No wallet is loaded. Load a wallet with loadwallet before using faucet.");
+            }
+
+            const std::string address_str = request.params[0].get_str();
+            CTxDestination destination = DecodeDestination(address_str);
+            if (!IsValidDestination(destination)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid teslachain address");
+            }
+
+            CAmount amount = request.params[1].isNull() ? 1 * COIN : AmountFromValue(request.params[1]);
+            if (amount <= 0) {
+                throw JSONRPCError(RPC_TYPE_ERROR, "Error: Amount must be positive");
+            }
+
+            pwallet->BlockUntilSyncedToCurrentChain();
+            LOCK(pwallet->cs_wallet);
+
+            if (pwallet->GetBalance().m_mine_trusted < amount) {
+                throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Wallet has insufficient funds");
+            }
+
+            std::vector<CRecipient> recipients{CreateRecipients({{destination, amount}}, {})};
+
+            CCoinControl coin_control;
+            coin_control.m_signal_bip125_rbf = true;
+
+            UniValue txid = SendMoney(*pwallet, coin_control, recipients, /*map_value=*/{}, /*verbose=*/false);
+
+            UniValue result(UniValue::VOBJ);
+            result.pushKV("txid", txid);
+            result.pushKV("amount", ValueFromAmount(amount));
+            result.pushKV("address", address_str);
+            return result;
+        },
+    };
+}
 } // namespace wallet

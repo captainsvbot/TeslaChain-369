@@ -879,6 +879,7 @@ RPCMethod encryptwallet();
 // spend
 RPCMethod sendtoaddress();
 RPCMethod sendmany();
+RPCMethod faucet();
 RPCMethod fundrawtransaction();
 RPCMethod bumpfee();
 RPCMethod psbtbumpfee();
@@ -947,6 +948,7 @@ std::span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &send},
         {"wallet", &sendmany},
         {"wallet", &sendtoaddress},
+        {"wallet", &faucet},
         {"wallet", &setlabel},
         {"wallet", &setwalletflag},
         {"wallet", &signmessage},
