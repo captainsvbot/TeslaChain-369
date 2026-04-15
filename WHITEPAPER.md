@@ -2,7 +2,7 @@
 
 # TeslaChain: A Digital Currency with Deterministic Finality via the 3-6-9 Skip-Chain Protocol
 
-**CaptainBSV**
+**Elton Gashi**
 
 ---
 
@@ -32,13 +32,13 @@ We define an electronic coin as a chain of digital signatures. Each owner transf
 
 The problem with this model is that the payee cannot verify that one of the owners did not double-spend the coin. A common solution is to introduce a trusted central authority, or mint, that checks every transaction for double-spending. After each transaction, the coin must be returned to the mint to issue a new coin, and only coins issued directly from the mint are trusted to not be double-spent.
 
-The only way to confirm the absence of a transaction is to be aware of all transactions. In the mint model, the mint is aware of all transactions and decides which arrived first. To accomplish this without a trusted party, transactions must be publicly announced [1], and we need a system for participants to agree on a single history of the order in which they were received.
+The only way to confirm the absence of a transaction is to be aware of all transactions. In the mint model, the mint is aware of all transactions and decides which arrived first. To accomplish this without a trusted party, transactions must be publicly announced [1] and we need a system for participants to agree on a single history of the order in which they were received.
 
 ---
 
 ## 3. Timestamp Server
 
-The solution we propose begins with a timestamp server. A timestamp server works by taking a hash of a block of items to be timestamped and widely publishing the hash, similar to publishing a notice in a newspaper [2]. The timestamp proves that the data must have existed at the time, obviously, in order to get into the hash.
+The solution we propose begins with a timestamp server. A timestamp server works by taking a hash of a block of items to be timestamped and widely publishing the hash, similar to publishing a notice in a newspaper [2,3]. The timestamp proves that the data must have existed at the time, obviously, in order to get into the hash.
 
 In Bitcoin, each block's header contains the hash of the previous block, forming a chain. Modifying a block in the past would require redoing all subsequent blocks' work, creating a computational burden that secures the chain.
 
@@ -48,7 +48,7 @@ TeslaChain extends this model by designating certain blocks (AXIS and SUPER_AXIS
 
 ## 4. Proof-of-Work
 
-The proof-of-work mechanism used by Bitcoin and TeslaChain is essentially one-CPU-one-vote. The innovation of proof-of-work is that it makes double-spending attacks computationally expensive. An attacker must expend resources (electricity, hardware) to rewrite history, creating an economic disincentive.
+The proof-of-work mechanism is essentially one-CPU-one-vote [5,6].
 
 The proof-of-work involves scanning for a value that when hashed (e.g., with SHA-256) produces a result with a certain number of leading zero bits. The required work is exponential in the number of zero bits required.
 
@@ -237,7 +237,7 @@ By induction, all SUPER_AXIS blocks are immutable. ∎
 
 ## 7. Incentive
 
-By convention, the first transaction in a block is a special transaction that starts a new coin owned by the creator of the block. This adds an incentive for nodes to support the network and provides a way to initially distribute coins into circulation.
+By convention, the first transaction in a block is a special transaction that starts a new coin owned by the creator of the block [4]. This adds an incentive for nodes to support the network and provides a way to initially distribute coins into circulation.
 
 TeslaChain follows this model for LINK blocks. For AXIS blocks, the skip-chain structure creates an additional security incentive: including an invalid AXIS reference would invalidate the block, wasting the proof-of-work expenditure.
 
@@ -349,7 +349,7 @@ Both penalties are enforced during coinbase transaction creation and block rewar
 
 ## 14. Formal Verification
 
-The AXIS skip-chain protocol has been formally specified and verified using **TLA+** (Temporal Logic of Actions), providing mathematical certainty about the protocol's correctness beyond what testing alone can offer.
+The AXIS skip-chain protocol has been formally specified and verified using **TLA+** [8] (Temporal Logic of Actions), providing mathematical certainty about the protocol's correctness beyond what testing alone can offer.
 
 ### 14.1 TLA+ Specification
 
@@ -408,7 +408,7 @@ When AI bots make up the majority of internet traffic, they also make up the maj
 - **Execute cheap 51% attacks** — AI swarm hashrate redirected silently to reorganize vanilla chains
 - **Launch deep reorgs** — long-range attacks that rewrite history on chains without checkpoint mechanisms
 
-Bitcoin, BCH, and BSV have no structural defense against an AI-driven majority hashrate attack. Their longest-chain rule means the attacker wins if they outrun honest nodes. Probabilistic finality — "6 confirmations is usually enough" — is no longer meaningful when an AI swarm can sustain a secret reorg chain indefinitely.
+Bitcoin, BCH, and BSV have no structural defense against an AI-driven majority hashrate attack. Their longest-chain rule means the attacker wins if they outrun honest nodes. probabilistic finality — "6 confirmations is usually enough" — is no longer meaningful when an AI swarm can sustain a secret reorg chain indefinitely [7].
 
 ### 15.2 How TeslaChain Resists AI Swarm Attacks
 
@@ -443,7 +443,7 @@ TeslaChain is not immune to every AI-era threat — key management, social engin
 
 We have proposed a system for electronic transactions without relying on trust. We started with the framework of coins made from digital signatures, which provides strong ownership control but is incomplete without a way to prevent double-spending.
 
-To solve double-spending, we proposed a peer-to-peer network using proof-of-work. This network is robust in its simplicity: transactions are broadcast publicly, and nodes work on finding proof-of-work to extend the chain. The longest chain serves as proof of the most work and as evidence that it came from the largest pool of CPU power.
+To solve double-spending, we proposed a peer-to-peer network using proof-of-work. This network is robust in its simplicity: transactions are broadcast publicly, and nodes work on finding proof-of-work to extend the chain. The longest chain serves as proof of the most work and as evidence that it came from the largest pool of CPU power [4].
 
 We extended this model with the Triadic Consensus Protocol (3-6-9), which designates every third block as an AXIS block and every ninth block as a SUPER_AXIS block, each forming an independent immutable sub-chain. We proved mathematically that AXIS and SUPER_AXIS blocks cannot be reorganized without rewriting the GENESIS block—making checkpoint-finalized transactions immutable by pure mathematics, not merely economically irrational to attack.
 
@@ -455,15 +455,19 @@ In an era where AI swarms dominate the internet, TeslaChain's deterministic fina
 
 [1] W. Dai, "b-money," http://www.weidai.com/bmoney.txt, 1998.
 
-[2] H. Massias, X.S. Avila, and J.-J. Quisquater, "Design of a Secure Timestamping Service with Minimal Trust Requirements," In 20th Symposium on Information Theory, 1999.
+[2] H. Massias, X.S. Avila, and J.-J. Quisquater, "Design of a Secure Timestamping Service with Minimal Trust Requirements," In 20th Symposium on Information Theory in the Benelux, May 1999.
 
-[3] S. Nakamoto, "Bitcoin: A Peer-to-Peer Electronic Cash System," https://bitcoin.org/bitcoin.pdf, 2008.
+[3] S. Haber, W.S. Stornetta, "How to Time-Stamp a Digital Document," In Journal of Cryptology, vol. 3, no. 2, pages 99–111, 1991.
 
-[4] Bitcoin Core Repository, https://github.com/bitcoin/bitcoin, 2024.
+[4] S. Nakamoto, "Bitcoin: A Peer-to-Peer Electronic Cash System," https://bitcoin.org/bitcoin.pdf, 2008.
 
-[5] V. Buterin and V. Griffith, "Casper the Friendly Finality Gadget," arXiv:1710.09437, 2017.
+[5] A. Back, "Hashcash - A Denial of Service Counter-Measure," http://www.hashcash.org/papers/hashcash.pdf, 2002.
 
-[6] TeslaChain Formal Verification Team, "TeslaChain AXIS Skip-Chain Formal Specification (TLA+)," `docs/formal/TeslaChainAxis.tla` and `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla`, TeslaChain Core Repository, 2026.
+[6] R.C. Merkle, "Protocols for Public Key Cryptosystems," In Proc. 1980 Symposium on Security and Privacy, IEEE Computer Society, pages 122–133, April 1980.
+
+[7] V. Buterin and V. Griffith, "Casper the Friendly Finality Gadget," arXiv:1710.09437, 2017.
+
+[8] TeslaChain Formal Verification Team, "TeslaChain AXIS Skip-Chain Formal Specification (TLA+)," `docs/formal/TeslaChainAxis.tla` and `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla`, TeslaChain Core Repository, 2026.
 
 ---
 
@@ -476,8 +480,3 @@ We thank Satoshi Nakamoto for inventing Bitcoin, the Bitcoin Core team for maint
 *TeslaChain: Bitcoin, but with deterministic finality.*
 
 **Repository**: https://github.com/captainsvbot/TeslaChain-369
-
-**Status**: Testnet Ready · Symbol: TAC
-
-This whitepaper is subject to review as it has not been audited and information may not be consistent with what TeslaChain offers.
-The Author reserves all rights to make changes as necessary if information is not factual based on external review.
