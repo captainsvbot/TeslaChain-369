@@ -120,6 +120,12 @@ struct Params {
       */
     bool enforce_BIP94;
     bool fPowNoRetargeting;
+    /**
+     * If true, enforce AXIS skip-chain validation on testnet chains (non-regtest).
+     * On regtest, AXIS validation is always skipped (functional test framework limitation).
+     * Defaults to true so testnet gets full 3-6-9 consensus testing.
+     */
+    bool fAxisValidationOnTestnet{true};
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     std::chrono::seconds PowTargetSpacing() const
