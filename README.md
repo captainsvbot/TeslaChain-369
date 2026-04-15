@@ -20,13 +20,13 @@ The following features are implemented and functional as of the April 14, 2026 m
 TeslaChain uses **144-byte block headers** (80-byte Bitcoin header + 64 bytes for AXIS skip-chain fields):
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ 80-byte Bitcoin Block Header                                │
+┌───────────────────────────────────────────────────────────────────┐
+│ 80-byte Bitcoin Block Header                                      │
 │ [version:4][prevblock:32][merkleroot:32][time:4][bits:4][nonce:4] │
-├─────────────────────────────────────────────────────────────┤
-│ 64-byte AXIS Fields                                         │
-│ [hashPrevAxisBlock:32][hashAxisMerkleRoot:32]               │
-└─────────────────────────────────────────────────────────────┘
+├───────────────────────────────────────────────────────────────────┤
+│ 64-byte AXIS Fields                                               │
+│ [hashPrevAxisBlock:32][hashAxisMerkleRoot:32]                     │
+└───────────────────────────────────────────────────────────────────┘
 Total: 144 bytes
 ```
 
