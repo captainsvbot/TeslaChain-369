@@ -76,25 +76,6 @@ Node discovery is implemented across all networks:
 - **Peer address gossip** — standard `addr`/`addrv2` messages, filtered by `NODE_AXIS` flag.
 - **SPV client discovery flow** — SPV clients connect to any peer, send `GETADDR`, then connect to AXIS-capable peers for header sync.
 
-### SLASH Penalties for AXIS Violations
-
-> **Non-Technical:** If a miner tries to cheat — creating a block with incorrect AXIS fields — they face real consequences. TeslaChain burns 50% or 25% of the block reward (depending on the violation type) and the offending peer gets banned from the network. This economic penalty makes cheating expensive and unprofitable. Unlike Bitcoin where a 51% attacker loses only the electricity spent, a TeslaChain attacker also burns their coinbase reward.
-
-When a block violates AXIS protocol rules, SLASH conditions apply. The penalty system is implemented in `src/validation.cpp` and configured via `AXISlashParams` in `src/consensus/params.h`. Violations include:
-
-- Missing or null `hashPrevAxisBlock` on an AXIS/SUPER_AXIS block → **V1 penalty**
-- Missing or null `hashAxisMerkleRoot` on an AXIS/SUPER_AXIS block → **V2 penalty**
-- `hashPrevAxisBlock` pointing to wrong block (not height - 3 for AXIS, not height - 9 for SUPER_AXIS) → **V1 penalty**
-- `hashAxisMerkleRoot` not matching the computed cumulative merkle for the respective chain → **V2 penalty**
-- LINK blocks with non-null AXIS fields → **V1 penalty**
-
-**Penalty Structure:**
-
-| Violation | Burn | DoS Score |
-|-----------|------|----------|
-| V1: Invalid `hashPrevAxisBlock` | **50%** of coinbase | 50 |
-| V2: Invalid `hashAxisMerkleRoot` | **25%** of coinbase | 25 |
-
 ### TLA+ Formal Specification
 
 A full TLA+ specification of the AXIS skip-chain protocol is in `docs/formal/`. The specification covers:
