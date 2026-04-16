@@ -4156,10 +4156,11 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
 
         // Verify hashPrevAxisBlock points to the correct previous AXIS block
         if (nHeight == 3) {
-            // First AXIS block must reference GENESIS (uint256::ZERO)
-            if (!block.hashPrevAxisBlock.IsNull()) {
-                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-genesis-hash-nonzero",
-                    strprintf("AXIS block 3 must have hashPrevAxisBlock=0 (GENESIS), got %s",
+            // First AXIS block must reference GENESIS block hash (block 0)
+            uint256 genesisHash = pindexPrev->GetAncestor(0)->GetBlockHash();
+            if (block.hashPrevAxisBlock != genesisHash) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-genesis-hash-mismatch",
+                    strprintf("AXIS block 3 must have hashPrevAxisBlock=GenesisHash, got %s",
                               block.hashPrevAxisBlock.ToString()));
             }
         } else {

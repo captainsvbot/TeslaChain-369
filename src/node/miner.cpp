@@ -83,7 +83,8 @@ void RegenerateCommitments(CBlock& block, ChainstateManager& chainman)
         const int nHeight = prev_block->nHeight + 1;
         if (nHeight > 0 && nHeight % 3 == 0) {
             if (nHeight == 3) {
-                block.hashPrevAxisBlock = uint256::ZERO;
+                block.hashPrevAxisBlock = prev_block->GetAncestor(0)->GetBlockHash();
+                block.hashAxisMerkleRoot = block.hashPrevAxisBlock;
             } else {
                 int nPrevAxisHeight = nHeight - 3;
                 const CBlockIndex* pPrevAxis = prev_block->GetAncestor(nPrevAxisHeight);
