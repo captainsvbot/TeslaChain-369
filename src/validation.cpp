@@ -4165,8 +4165,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
             }
         } else {
             // Block > 3: hashPrevAxisBlock must equal hash of previous AXIS block
-            // SUPER_AXIS (height % 9 == 0) links to GENESIS (height 0)
-            int nPrevAxisHeight = (nHeight % 9 == 0) ? 0 : (nHeight - 3);
+            int nPrevAxisHeight = nHeight - 3;
             const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
             if (!pPrevAxis) {
                 return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-not-found",

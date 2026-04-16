@@ -86,8 +86,7 @@ void RegenerateCommitments(CBlock& block, ChainstateManager& chainman)
                 block.hashPrevAxisBlock = prev_block->GetAncestor(0)->GetBlockHash();
                 block.hashAxisMerkleRoot = block.hashPrevAxisBlock;
             } else {
-                // SUPER_AXIS (height % 9 == 0) links to previous SUPER_AXIS (9 blocks back)
-                int nPrevAxisHeight = (nHeight % 9 == 0) ? (nHeight - 9) : (nHeight - 3);
+                int nPrevAxisHeight = nHeight - 3;
                 const CBlockIndex* pPrevAxis = prev_block->GetAncestor(nPrevAxisHeight);
                 if (pPrevAxis) {
                     block.hashPrevAxisBlock = pPrevAxis->GetBlockHash();
