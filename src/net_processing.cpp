@@ -1939,11 +1939,7 @@ void PeerManagerImpl::MaybePunishNodeForBlock(NodeId nodeid, const BlockValidati
     case BlockValidationResult::BLOCK_INVALID_PREV:
         if (peer) Misbehaving(*peer, message);
         return;
-    // TeslaChain 3-6-9: AXIS SLASH violations — always misbehave, serious consensus failures
-    case BlockValidationResult::BLOCK_AXIS_INVALID_V1:
-    case BlockValidationResult::BLOCK_AXIS_INVALID_V2:
-        if (peer) Misbehaving(*peer, message);
-        return;
+
     // Conflicting (but not necessarily invalid) data or different policy:
     case BlockValidationResult::BLOCK_MISSING_PREV:
         if (peer) Misbehaving(*peer, message);
