@@ -261,7 +261,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
             // AXIS block at height > 3: hashPrevAxisBlock = hash of previous AXIS block
             // SUPER_AXIS (height % 9 == 0) links to previous SUPER_AXIS (9 blocks back)
             // AXIS (height % 3 == 0 but not % 9) links to previous AXIS (3 blocks back)
-            int nPrevAxisHeight = (nHeight % 9 == 0) ? (nHeight - 9) : (nHeight - 3);
+            int nPrevAxisHeight = nHeight - 3;
             const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
             if (pPrevAxis) {
                 pblock->hashPrevAxisBlock = pPrevAxis->GetBlockHash();
