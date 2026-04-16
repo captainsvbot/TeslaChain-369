@@ -241,7 +241,6 @@ By convention, the first transaction in a block is a special transaction that st
 
 TeslaChain follows this model for LINK blocks. For AXIS blocks, the skip-chain structure creates an additional security incentive: including an invalid AXIS reference would invalidate the block, wasting the proof-of-work expenditure.
 
-Additionally, TeslaChain's SLASH penalty mechanism burns a portion of the block reward for violations, creating a direct economic cost for protocol non-compliance.
 
 ---
 
@@ -312,46 +311,11 @@ The probability of an attacker catching up diminishes exponentially as subsequen
 
 ---
 
-## 13. SLASH Penalties
-
-The Triadic Consensus Protocol enforces AXIS structural integrity through a penalty mechanism called **SLASH**, which punishes nodes that produce blocks with invalid AXIS fields. SLASH penalties are enforced at the consensus layer and result in proportional coin destruction.
-
-### 13.1 SLASH V1 — hashPrevAxisBlock Violations
-
-**Trigger**: An AXIS or SUPER_AXIS block's `hashPrevAxisBlock` field does not correctly reference the preceding block in the skip-chain. For AXIS blocks, this means height H−3. For SUPER_AXIS blocks, this means height H−9.
-
-**Penalty**: 50% burn of the block reward.
-
-**Detection**: This violation is detected during both P2P header reception (via `AXISHEADERS` or `headers` messages) and during full block validation. When receiving AXIS headers from peers, the node verifies that `hashPrevAxisBlock` points to the correct prior block. A mismatch results in DoS scoring (+10) and rejection of the invalid header.
-
-**Rationale**: The `hashPrevAxisBlock` field is the skip-chain's integrity link. If it is wrong, the AXIS/SUPER_AXIS block is not properly anchored to its predecessor, breaking the transitive immutability chain. Burning 50% of the reward makes it economically catastrophic to mine atop an invalid checkpoint.
-
-### 13.2 SLASH V2 — hashAxisMerkleRoot Violations
-
-**Trigger**: An AXIS or SUPER_AXIS block's `hashAxisMerkleRoot` does not match the correctly computed cumulative merkle root of all blocks in its respective chain (AXIS merkle for AXIS blocks; SUPER_AXIS merkle for SUPER_AXIS blocks).
-
-**Penalty**: 25% burn of the block reward.
-
-**Detection**: During full block validation, the node recomputes the respective merkle chain up to the current height and compares the result against `hashAxisMerkleRoot`. A mismatch triggers SLASH V2. At the P2P layer, headers with null `hashAxisMerkleRoot` are rejected with DoS scoring (+10).
-
-**Rationale**: The `hashAxisMerkleRoot` commits to the entire checkpoint chain history. An incorrect value means the block's commitment to prior checkpoints is invalid. The 25% burn is proportional to the severity.
-
-### 13.3 Penalty Enforcement Summary
-
-| Penalty | Violation | Burn % | DoS Score (P2P) |
-|---------|-----------|--------|-----------------|
-| SLASH V1 | Invalid `hashPrevAxisBlock` | 50% | +10 |
-| SLASH V2 | Invalid `hashAxisMerkleRoot` | 25% | +10 |
-
-Both penalties are enforced during coinbase transaction creation and block reward distribution. Full nodes that detect these violations during P2P header sync immediately ban the offending peer upon reaching the DoS threshold.
-
----
-
-## 14. Formal Verification
+## 13. Formal Verification
 
 The AXIS skip-chain protocol has been formally specified and verified using **TLA+** [8] (Temporal Logic of Actions), providing mathematical certainty about the protocol's correctness beyond what testing alone can offer.
 
-### 14.1 TLA+ Specification
+### 13.1 TLA+ Specification
 
 The formal specification is located at `docs/formal/TeslaChainAxis.tla`. It models the AXIS skip-chain as a state machine with the following core variables:
 
@@ -362,7 +326,7 @@ The formal specification is located at `docs/formal/TeslaChainAxis.tla`. It mode
 
 The specification defines block structures with fields for height, hash, `hashPrevBlock`, `hashPrevAxisBlock`, and `hashAxisMerkleRoot`, mirroring the 144-byte header layout used in the implementation.
 
-### 14.2 Four Invariants
+### 13.2 Four Invariants
 
 The TLA+ specification establishes four critical invariants that hold for all reachable states:
 
@@ -386,7 +350,7 @@ The core theorem, proven in `docs/formal/AXIS_IMMUTABILITY_THEOREM.tla`, states:
 
 By induction, modifying any AXIS block propagates all the way back to GENESIS. This makes the entire AXIS chain **as immutable as GENESIS itself**. The same logic applies independently to the SUPER_AXIS chain. ∎
 
-### 14.4 Model Checking
+### 13.4 Model Checking
 
 The TLA+ specification is verified using **TLC** (the TLA+ model checker) and **TLAPS** (the TLA+ proof system). TLC exhaustively explores all reachable states up to a configurable `MaxHeight`, checking that all invariants hold. TLAPS provides machine-checked proofs for the theorems, eliminating the possibility of logical errors in the proof reasoning.
 
@@ -394,13 +358,13 @@ Verification checklist and model configurations are available in `docs/formal/TL
 
 ---
 
-## 15. AI-Era Security: Why TeslaChain Wins
+## 14. AI-Era Security: Why TeslaChain Wins
 
 *"Over half of the planet's internet traffic is now made up of AI bots" — Kate Johnson, CEO of Lumen (Bloomberg, April 2026)*
 
 An emerging threat has materialized: AI agents operating autonomously at machine scale are generating the majority of internet traffic. This changes the threat model for blockchain consensus fundamentally.
 
-### 15.1 The AI Swarm Threat
+### 14.1 The AI Swarm Threat
 
 When AI bots make up the majority of internet traffic, they also make up the majority of compute, storage, and — critically — hash rate. A malicious actor with access to an AI swarm (through hacked cloud infrastructure, compromised IoT devices, or state-level resources) can:
 
@@ -410,7 +374,7 @@ When AI bots make up the majority of internet traffic, they also make up the maj
 
 Bitcoin, BCH, and BSV have no structural defense against an AI-driven majority hashrate attack. Their longest-chain rule means the attacker wins if they outrun honest nodes. probabilistic finality — "6 confirmations is usually enough" — is no longer meaningful when an AI swarm can sustain a secret reorg chain indefinitely [7].
 
-### 15.2 How TeslaChain Resists AI Swarm Attacks
+### 14.2 How TeslaChain Resists AI Swarm Attacks
 
 TeslaChain's AXIS checkpoints are not probabilistic. They are *mathematically final* — an AXIS block cannot be modified without modifying GENESIS, and GENESIS is immutable by protocol definition.
 
@@ -425,10 +389,9 @@ TeslaChain's AXIS checkpoints are not probabilistic. They are *mathematically fi
 |--------|-----------------|------------|
 | 51% AI swarm attack | Probabilistic — attacker wins if they outrun honest chain | Deterministic — AXIS checkpoints are immutably anchored to GENESIS |
 | Deep reorg (6+ blocks) | Possible with sufficient AI hashrate | Mathematically impossible for AXIS/SUPER_AXIS blocks |
-| AI-driven double-spend | Increasingly cheap as AI compute scales | SLASH burns 50% of attacker coinbase; two independent constraints (PoW + checkpointing) |
 | SPV fraud | Full node or trust | SPV proof verifies all three constraints independently |
 
-### 15.3 The Key Insight
+### 14.3 The Key Insight
 
 Bitcoin's security degrades as AI makes hashrate cheaper and more abundant. TeslaChain's security *improves* as checkpoints accumulate — the deeper the AXIS chain, the more GENESIS-bound each subsequent checkpoint becomes.
 
@@ -439,7 +402,7 @@ TeslaChain is not immune to every AI-era threat — key management, social engin
 
 ---
 
-## 16. Conclusion
+## 15. Conclusion
 
 We have proposed a system for electronic transactions without relying on trust. We started with the framework of coins made from digital signatures, which provides strong ownership control but is incomplete without a way to prevent double-spending.
 
