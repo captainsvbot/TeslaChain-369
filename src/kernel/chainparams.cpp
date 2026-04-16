@@ -272,6 +272,7 @@ public:
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
+        fAxisValidationOnTestnet = true;
 
         m_assumeutxo_data = {
             {

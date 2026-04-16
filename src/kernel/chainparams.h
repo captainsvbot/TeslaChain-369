@@ -177,6 +177,8 @@ protected:
     std::vector<unsigned char> base58Prefixes[MAX_BASE58_TYPES];
     std::string bech32_hrp;
     ChainType m_chain_type;
+    /** Whether AXIS skip-chain validation is enforced on testnet (default true). */
+    bool fAxisValidationOnTestnet{true};
     CBlock genesis;
     std::vector<uint8_t> vFixedSeeds;
     bool fDefaultConsistencyChecks;
