@@ -282,7 +282,7 @@ W(N) / (D · N) ≈ 2/3 + 6/9 + 9/9 = 2/3 + 2/3 + 1 = 7/3 ≈ 2.33×
 
 An honest TeslaChain chain accumulates consensus weight **~2.33× faster** than a flat linear chain of equal PoW. An attacker who diverges from an AXIS or SUPER_AXIS checkpoint loses the α multiplier for all subsequent blocks until they re-establish a valid checkpoint on their secret chain.
 
-> **Non-Technical:** The math shows honest nodes gain weight 2.33× faster than a flat chain. Combined with SLASH penalties that burn an attacker's coinbase, TeslaChain makes it mathematically irrational to attempt a long-range reorganisation.
+> **Non-Technical:** The math shows honest nodes gain weight 2.33× faster than a flat chain, TeslaChain makes it mathematically irrational to attempt a long-range reorganisation.
 
 Any AXIS block at height H in the AXIS merkle chain cannot be modified without modifying all AXIS blocks from height 3 to H in that chain, including GENESIS.
 
@@ -346,8 +346,8 @@ Bits:         0x201fffff (TESLACHAIN) | 0x1d00ffff (Bitcoin compat)
 | File | Purpose |
 |------|---------|
 | `src/primitives/block.h` | `CBlockHeader` with 144-byte layout (80B + AXIS fields) |
-| `src/validation.cpp` | Skip-chain validation + SLASH penalty enforcement |
-| `src/consensus/params.h` | `AXISlashParams` SLASH penalty configuration |
+| `src/validation.cpp` | Skip-chain validation                             |
+| `src/consensus/params.h` | `removed`                                     |
 | `src/node/miner.cpp` | AXIS field auto-computation during block creation |
 | `src/hash.h` | `HashWriter` for AXIS merkle computation |
 | `src/kernel/chainparams.cpp` | Genesis params, network config |
@@ -472,7 +472,6 @@ cmake -B build && cmake --build build --target bitcoind -j4
 - SPV proof generation and verification RPC
 - Node discovery with DNS seeds and fixed seeds
 - `NODE_AXIS` service flag
-- SLASH penalty conditions for AXIS violations
 - TLA+ formal specification with model checking (TLC) and proofs (TLAPS)
 - AXIS validation enforced on testnet (via `fAxisValidationOnTestnet=true`); skipped on regtest (functional test framework limitation)
 
@@ -496,7 +495,6 @@ cmake -B build && cmake --build build --target bitcoind -j4
 python3 test/functional/test_runner.py --tmpdir=/tmp/test
 
 # Run specific tests
-python3 test/functional/feature_axis_slash.py --tmpdir=/tmp/axis_test
 python3 test/functional/feature_spv_prove.py --tmpdir=/tmp/spv_test
 python3 test/functional/feature_triadic_consensus.py --tmpdir=/tmp/consensus_test
 
@@ -526,10 +524,8 @@ java -cp tla2tools.jar tlc.TLC TeslaChainAxis \
 | `59e44ca` | #22 | fix: AXIS skip-chain validation - read previous AXIS block from disk |
 | `c15491f` | #20 | fix: parse nbits as uint32 instead of ParseHashV in verifyaxisproof |
 | `8663769` | #19 | fix: verifyaxisproof accepts JSON object matching getaxisproof output |
-| `e1ec811` | #18 | test: register feature_axis_slash and feature_spv_prove in test_runner |
 | `84b6029` | #17 | fix: change RPCArg Type::OBJ to STR_HEX for verifyaxisproof proof param |
 | `a54ed68` | #13 | feat: node discovery and bootstrap |
-| `ad6d062` | #11 | feat: SLASH conditions for TeslaChain AXIS violations |
 | `d90dc69` | #7 | feat: SPV prove system for TeslaChain AXIS blocks |
 | `f86e6b7` | #9 | docs: P2P networking design for TeslaChain 3-6-9 |
 | `f946875` | #6 | docs: TLA+ formal specification for AXIS skip-chain consensus |
