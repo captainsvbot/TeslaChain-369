@@ -566,13 +566,7 @@ public:
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
 
-        // TeslaChain 3-6-9: AXIS SLASH penalty parameters for regtest
-        // V1 (hashPrevAxisBlock invalid): burn 50%, DoS score 50
-        // V2 (hashAxisMerkleRoot invalid): burn 25%, DoS score 25
-        consensus.axis_slash_params.burn_percentage_v1 = 50;
-        consensus.axis_slash_params.burn_percentage_v2 = 25;
-        consensus.axis_slash_params.dos_score_v1 = 50;
-        consensus.axis_slash_params.dos_score_v2 = 25;
+
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
