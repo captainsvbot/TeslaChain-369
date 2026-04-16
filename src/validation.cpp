@@ -4163,8 +4163,36 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
                     strprintf("AXIS block 3 must have hashPrevAxisBlock=GenesisHash, got %s",
                               block.hashPrevAxisBlock.ToString()));
             }
+        } else if (nHeight % 9 == 0) {
+            // SUPER_AXIS block (height % 9 == 0): links to previous SUPER_AXIS (9 blocks back)
+            int nPrevAxisHeight = nHeight - 9;
+            const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
+            if (!pPrevAxis) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-not-found",
+                    strprintf("SUPER_AXIS block %d: previous SUPER_AXIS block at height %d not found in chain", nHeight, nPrevAxisHeight));
+            }
+            if (block.hashPrevAxisBlock != pPrevAxis->GetBlockHash()) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-prev-axis-mismatch",
+                    strprintf("SUPER_AXIS block %d hashPrevAxisBlock=%s != expected %s (SUPER_AXIS block %d hash)",
+                              nHeight, block.hashPrevAxisBlock.ToString(), pPrevAxis->GetBlockHash().ToString(), nPrevAxisHeight));
+            }
+            // Verify hashAxisMerkleRoot
+            uint256 expectedMerkle;
+            if (pPrevAxis->hashAxisMerkleRoot.IsNull()) {
+                expectedMerkle = pPrevAxis->GetBlockHash();
+            } else {
+                HashWriter ss;
+                ss << pPrevAxis->hashAxisMerkleRoot;
+                ss << pPrevAxis->GetBlockHash();
+                expectedMerkle = ss.GetHash();
+            }
+            if (block.hashAxisMerkleRoot != expectedMerkle) {
+                return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-merkle-root-mismatch",
+                    strprintf("SUPER_AXIS block %d hashAxisMerkleRoot=%s != expected %s",
+                              nHeight, block.hashAxisMerkleRoot.ToString(), expectedMerkle.ToString()));
+            }
         } else {
-            // Block > 3: hashPrevAxisBlock must equal hash of previous AXIS block
+            // Regular AXIS block (height % 3 == 0 but not % 9): links to previous AXIS (3 blocks back)
             int nPrevAxisHeight = nHeight - 3;
             const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
             if (!pPrevAxis) {
@@ -4176,17 +4204,16 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
                     strprintf("AXIS block %d hashPrevAxisBlock=%s != expected %s (block %d hash)",
                               nHeight, block.hashPrevAxisBlock.ToString(), pPrevAxis->GetBlockHash().ToString(), nPrevAxisHeight));
             }
-
             // Verify hashAxisMerkleRoot: must equal Hash(prev_cumulative_root || prev_axis_hash)
             uint256 expectedMerkle;
             if (pPrevAxis->hashAxisMerkleRoot.IsNull()) {
                 // Previous AXIS was genesis-start: root = hash of that AXIS block
                 expectedMerkle = pPrevAxis->GetBlockHash();
             } else {
-            HashWriter ss;
-            ss << pPrevAxis->hashAxisMerkleRoot;
-            ss << pPrevAxis->GetBlockHash();
-            expectedMerkle = ss.GetHash();
+                HashWriter ss;
+                ss << pPrevAxis->hashAxisMerkleRoot;
+                ss << pPrevAxis->GetBlockHash();
+                expectedMerkle = ss.GetHash();
             }
             if (block.hashAxisMerkleRoot != expectedMerkle) {
                 return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "axis-merkle-root-mismatch",

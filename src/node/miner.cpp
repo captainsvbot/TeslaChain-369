@@ -83,9 +83,22 @@ void RegenerateCommitments(CBlock& block, ChainstateManager& chainman)
         const int nHeight = prev_block->nHeight + 1;
         if (nHeight > 0 && nHeight % 3 == 0) {
             if (nHeight == 3) {
+                // Block 3: links to GENESIS
                 block.hashPrevAxisBlock = prev_block->GetAncestor(0)->GetBlockHash();
                 block.hashAxisMerkleRoot = block.hashPrevAxisBlock;
+            } else if (nHeight % 9 == 0) {
+                // SUPER_AXIS block (height % 9 == 0): links to previous SUPER_AXIS (9 blocks back)
+                int nPrevAxisHeight = nHeight - 9;
+                const CBlockIndex* pPrevAxis = prev_block->GetAncestor(nPrevAxisHeight);
+                if (pPrevAxis) {
+                    block.hashPrevAxisBlock = pPrevAxis->GetBlockHash();
+                    HashWriter ss;
+                    ss << pPrevAxis->hashAxisMerkleRoot;
+                    ss << pPrevAxis->GetBlockHash();
+                    block.hashAxisMerkleRoot = ss.GetHash();
+                }
             } else {
+                // Regular AXIS block (height % 3 == 0 but not % 9): links to previous AXIS (3 blocks back)
                 int nPrevAxisHeight = nHeight - 3;
                 const CBlockIndex* pPrevAxis = prev_block->GetAncestor(nPrevAxisHeight);
                 if (pPrevAxis) {
@@ -257,10 +270,31 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
             pblock->hashPrevAxisBlock = pindexPrev->GetAncestor(0)->GetBlockHash();  // GENESIS hash
             pblock->hashAxisMerkleRoot = pblock->hashPrevAxisBlock;  // First AXIS merkle entry = GENESIS
             LogInfo("SKIP-CHAIN: Block 3 (first AXIS) anchored to GENESIS\n");
+        } else if (nHeight % 9 == 0) {
+            // SUPER_AXIS block (height % 9 == 0): links to previous SUPER_AXIS (9 blocks back)
+            int nPrevAxisHeight = nHeight - 9;
+            const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
+            if (pPrevAxis) {
+                pblock->hashPrevAxisBlock = pPrevAxis->GetBlockHash();
+                // hashAxisMerkleRoot: for SUPER_AXIS, the merkle root accumulates across the 9-block cycle
+                if (pPrevAxis->hashAxisMerkleRoot.IsNull()) {
+                    pblock->hashAxisMerkleRoot = pPrevAxis->GetBlockHash();
+                } else {
+                    HashWriter ss;
+                    ss << pPrevAxis->hashAxisMerkleRoot;
+                    ss << pPrevAxis->GetBlockHash();
+                    pblock->hashAxisMerkleRoot = ss.GetHash();
+                }
+                LogInfo("SKIP-CHAIN: Block %d (SUPER_AXIS) hashPrevAxisBlock=%s (height %d), hashAxisMerkleRoot=%s\n",
+                        nHeight, pblock->hashPrevAxisBlock.ToString(), nPrevAxisHeight, pblock->hashAxisMerkleRoot.ToString());
+            } else {
+                pblock->hashPrevAxisBlock = uint256::ZERO;
+                pblock->hashAxisMerkleRoot = uint256::ZERO;
+                LogError("SKIP-CHAIN ERROR: Block %d SUPER_AXIS but previous SUPER_AXIS (height %d) not found!\n",
+                         nHeight, nPrevAxisHeight);
+            }
         } else {
-            // AXIS block at height > 3: hashPrevAxisBlock = hash of previous AXIS block
-            // SUPER_AXIS (height % 9 == 0) links to previous SUPER_AXIS (9 blocks back)
-            // AXIS (height % 3 == 0 but not % 9) links to previous AXIS (3 blocks back)
+            // Regular AXIS block (height % 3 == 0 but not % 9): links to previous AXIS (3 blocks back)
             int nPrevAxisHeight = nHeight - 3;
             const CBlockIndex* pPrevAxis = pindexPrev->GetAncestor(nPrevAxisHeight);
             if (pPrevAxis) {
