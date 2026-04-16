@@ -4130,7 +4130,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     // ============================================================================
     const auto& params = chainman.GetParams();
     bool fSkipAxisValidation = (params.GetChainType() == ChainType::REGTEST);
-    if (!fSkipAxisValidation && !params.fAxisValidationOnTestnet && params.IsTestChain()) {
+    if (!fSkipAxisValidation && !params.IsAxisValidationEnforcedOnTestnet() && params.IsTestChain()) {
         fSkipAxisValidation = true;
     }
 
